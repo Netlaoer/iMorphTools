@@ -43,6 +43,65 @@ local T = {
 -- 辅助函数
 -- ============================================
 
+-- 全局下拉菜单状态追踪器，解决多处 HookScript("OnHide") 互相干扰的问题
+-- 同一时间只有一个下拉菜单可以处于"打开"状态
+local activeMenuID = nil  -- 当前打开的菜单标识
+local activeMenuBtn = nil -- 当前打开菜单对应的按钮
+
+local function OpenMenu(menuID, btn, menuFrame)
+    if activeMenuID == menuID then
+        CloseDropDownMenus()
+        activeMenuID = nil
+        activeMenuBtn = nil
+    else
+        activeMenuID = menuID
+        activeMenuBtn = btn
+        ToggleDropDownMenu(1, nil, menuFrame, btn, 0, 0)
+    end
+end
+
+-- 只注册一次全局 OnHide
+local ddHookRegistered = false
+local function RegisterDDOnHide()
+    if ddHookRegistered then return end
+    ddHookRegistered = true
+    DropDownList1:HookScript("OnHide", function()
+        -- 如果鼠标不在触发按钮上，说明是点击其他地方关闭的，重置状态
+        if activeMenuBtn and not activeMenuBtn:IsMouseOver() then
+            activeMenuID = nil
+            activeMenuBtn = nil
+        end
+    end)
+end
+
+-- 创建关闭按钮（X按钮，可点击关闭指定框架）
+local function CreateCloseButton(parent, onClick)
+    local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    btn:SetSize(18, 18)
+    btn:SetPoint("TOPRIGHT", -4, -4)
+    btn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    btn:SetBackdropColor(0.12, 0.12, 0.15, 1)
+    btn:SetBackdropBorderColor(0.28, 0.28, 0.32, 1)
+    local txt = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    txt:SetAllPoints()
+    txt:SetText("X")
+    btn:SetFontString(txt)
+    btn:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(0.7, 0.1, 0.1, 1)
+        self:SetBackdropBorderColor(0.9, 0.2, 0.2, 1)
+    end)
+    btn:SetScript("OnLeave", function(self)
+        self:SetBackdropColor(0.12, 0.12, 0.15, 1)
+        self:SetBackdropBorderColor(0.28, 0.28, 0.32, 1)
+    end)
+    btn:SetScript("OnClick", onClick)
+    return btn
+end
+
 -- 安全调用：确保 ID 为数字才执行
 local function SafeCall(func, id)
     if type(id) == "number" then
@@ -267,30 +326,12 @@ local function CreateSelectRow(parent, prevWidget, config)
         end
     end)
 
-    -- 使用自定义标志跟踪菜单状态
-    -- WoW在鼠标按下时自动关闭下拉菜单，且早于OnMouseDown事件，所以用OnEnter/OnLeave追踪鼠标位置来区分
-    local myMenuOpen = false
-    local mouseOverBtn = false
-
-    selectBtn:HookScript("OnEnter", function() mouseOverBtn = true end)
-    selectBtn:HookScript("OnLeave", function() mouseOverBtn = false end)
+    -- 使用全局菜单追踪器，确保同一时间只有一个下拉菜单处于打开状态
+    local menuID = config.menuName
+    RegisterDDOnHide()
 
     selectBtn:SetScript("OnClick", function(self)
-        if myMenuOpen then
-            CloseDropDownMenus()
-            myMenuOpen = false
-        else
-            ToggleDropDownMenu(1, nil, menuFrame, self, 0, 0)
-            myMenuOpen = true
-        end
-    end)
-
-    -- 下拉菜单被关闭时：鼠标在按钮上说明是点击按钮触发的关闭，不重置标志；
-    -- 鼠标不在按钮上说明是点击其他地方关闭的，需要重置标志
-    DropDownList1:HookScript("OnHide", function()
-        if not mouseOverBtn then
-            myMenuOpen = false
-        end
+        OpenMenu(menuID, self, menuFrame)
     end)
 
     local editBox = CreateModernEditBox(config.editBoxName, parent, config.editBoxSize or 85, 28)
@@ -363,29 +404,8 @@ function InitUI()
     titleText:SetText("|cff3399FFiMorphTools|r")
 
     -- 关闭按钮
-    local closeBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
+    local closeBtn = CreateCloseButton(titleBar, function() mainFrame:Hide() end)
     closeBtn:SetSize(20, 20)
-    closeBtn:SetPoint("TOPRIGHT", -4, -4)
-    closeBtn:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    closeBtn:SetBackdropColor(0.12, 0.12, 0.15, 1)
-    closeBtn:SetBackdropBorderColor(0.28, 0.28, 0.32, 1)
-    local closeTxt = closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    closeTxt:SetAllPoints()
-    closeTxt:SetText("X")
-    closeBtn:SetFontString(closeTxt)
-    closeBtn:SetScript("OnEnter", function(self)
-        self:SetBackdropColor(0.7, 0.1, 0.1, 1)
-        self:SetBackdropBorderColor(0.9, 0.2, 0.2, 1)
-    end)
-    closeBtn:SetScript("OnLeave", function(self)
-        self:SetBackdropColor(0.12, 0.12, 0.15, 1)
-        self:SetBackdropBorderColor(0.28, 0.28, 0.32, 1)
-    end)
-    closeBtn:SetScript("OnClick", function() mainFrame:Hide() end)
 
     -- 小地图按钮
     iMorphToolsMiniMapButton = CreateiMorphToolsMiniMapButton(mainFrame)
@@ -418,26 +438,10 @@ function InitUI()
         end
     end)
 
-    local cmdMenuOpen = false
-    local cmdMouseOverBtn = false
-
-    cmdBtn:HookScript("OnEnter", function() cmdMouseOverBtn = true end)
-    cmdBtn:HookScript("OnLeave", function() cmdMouseOverBtn = false end)
+    RegisterDDOnHide()
 
     cmdBtn:SetScript("OnClick", function(self)
-        if cmdMenuOpen then
-            CloseDropDownMenus()
-            cmdMenuOpen = false
-        else
-            ToggleDropDownMenu(1, nil, cmdMenu, self, 0, 0)
-            cmdMenuOpen = true
-        end
-    end)
-
-    DropDownList1:HookScript("OnHide", function()
-        if not cmdMouseOverBtn then
-            cmdMenuOpen = false
-        end
+        OpenMenu("CmdMenu", self, cmdMenu)
     end)
     preWidget = cmdBtn
 
@@ -534,29 +538,7 @@ function InitUI()
     mountTitleText:SetText("|cff3399FF坐骑改模|r")
 
     -- 弹出框关闭按钮
-    local mountCloseBtn = CreateFrame("Button", nil, mountTitleBar, "BackdropTemplate")
-    mountCloseBtn:SetSize(18, 18)
-    mountCloseBtn:SetPoint("TOPRIGHT", -4, -4)
-    mountCloseBtn:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    mountCloseBtn:SetBackdropColor(0.12, 0.12, 0.15, 1)
-    mountCloseBtn:SetBackdropBorderColor(0.28, 0.28, 0.32, 1)
-    local mountCloseTxt = mountCloseBtn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    mountCloseTxt:SetAllPoints()
-    mountCloseTxt:SetText("X")
-    mountCloseBtn:SetFontString(mountCloseTxt)
-    mountCloseBtn:SetScript("OnEnter", function(self)
-        self:SetBackdropColor(0.7, 0.1, 0.1, 1)
-        self:SetBackdropBorderColor(0.9, 0.2, 0.2, 1)
-    end)
-    mountCloseBtn:SetScript("OnLeave", function(self)
-        self:SetBackdropColor(0.12, 0.12, 0.15, 1)
-        self:SetBackdropBorderColor(0.28, 0.28, 0.32, 1)
-    end)
-    mountCloseBtn:SetScript("OnClick", function() mountFrame:Hide() end)
+    local mountCloseBtn = CreateCloseButton(mountTitleBar, function() mountFrame:Hide() end)
 
     -- 分类标签按钮
     local MOUNT_BTN_H = 22
@@ -821,16 +803,8 @@ function InitUI()
         end
     end)
 
-    local raceDdWasVisible = false
-    selectRaceBtn:SetScript("OnMouseDown", function(self)
-        raceDdWasVisible = DropDownList1:IsShown()
-    end)
     selectRaceBtn:SetScript("OnClick", function(self)
-        if raceDdWasVisible then
-            CloseDropDownMenus()
-        else
-            ToggleDropDownMenu(1, nil, raceMenu, self, 0, 0)
-        end
+        OpenMenu("RaceSelectMenu", self, raceMenu)
     end)
     preWidget = selectRaceBtn
 
@@ -1325,13 +1299,11 @@ function InitUI()
 
     local buttonPK = CreateModernButton("buttonPK", mainFrame, 50, 24, "应用")
     buttonPK:SetPoint("LEFT", dropdownPlayKitOpt, "RIGHT", -5, 2)
-    SetupTooltip(buttonPK, "执行 .playkit 命令应用选中的视觉套件\n动态=0 套件动作执行一次\n静态=1 套件保持固定效果")
+    SetupTooltip(buttonPK, "应用选中的视觉套件\n动态=0 套件动作执行一次\n静态=1 套件保持固定效果")
 
     buttonPK:SetScript("OnClick", function()
         if selectedPlayKitID and selectedPlayKitID ~= "" then
-            local editBox = ChatFrame1EditBox
-            editBox:SetText(".playkit " .. selectedPlayKitID .. " " .. selectedPlayKitOpt)
-            ChatEdit_SendText(editBox, 0)
+            PlayEffectKit(selectedPlayKitID, selectedPlayKitOpt)
         end
     end)
 

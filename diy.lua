@@ -1,6 +1,6 @@
 -- Write your code here.
 local function YourFunction()
-  DEFAULT_CHAT_FRAME:AddMessage("|cffffff00欢迎使用iMorphTools改模工具，点击小地图图标或者使用/imt命令打开主界面|r")
+  print("|cffffff00欢迎使用iMorphTools改模工具，点击小地图图标或者使用/imt命令打开主界面|r")
 end
 
 local function onPlayerLogin(self, event, ...)
