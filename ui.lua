@@ -1346,7 +1346,10 @@ function CreateiMorphToolsMiniMapButton(mainFrame)
     local icon = btn:CreateTexture(nil, "ARTWORK")
     icon:SetSize(24, 24)
     icon:SetPoint("CENTER")
-    icon:SetTexture("Interface\\AddOns\\iMorphTools\\icon")
+    -- 延迟设置纹理：ADDON_LOADED 时 TGA 文件可能尚未加载到内存
+    C_Timer.After(0, function()
+        icon:SetTexture("Interface\\AddOns\\iMorphTools\\icon")
+    end)
     icon:SetDesaturated(false)
 
     local highlight = btn:CreateTexture(nil, "HIGHLIGHT")
