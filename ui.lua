@@ -1,5 +1,43 @@
-﻿-- iMorphTools UI
+﻿-- iMorphTools UI - Modern Dark Theme
 -- 主界面逻辑，使用 IMT 命名空间中的数据
+
+-- ============================================
+-- 主题配色
+-- ============================================
+local T = {
+    -- 框架
+    bg          = {0.06, 0.06, 0.08, 0.94},
+    border      = {0.18, 0.18, 0.22, 1},
+    titleBg     = {0.08, 0.08, 0.12, 1},
+    titleBorder = {0.30, 0.30, 0.36, 1},
+    -- 强调色
+    accent      = {0.20, 0.60, 1.00, 1},
+    accentDim   = {0.12, 0.35, 0.65, 1},
+    -- 按钮
+    btnBg       = {0.14, 0.14, 0.18, 1},
+    btnBorder   = {0.35, 0.35, 0.40, 1},
+    btnHover    = {0.20, 0.20, 0.25, 1},
+    btnPress    = {0.06, 0.06, 0.08, 1},
+    btnDisBg    = {0.08, 0.08, 0.10, 0.5},
+    btnDisBdr   = {0.20, 0.20, 0.24, 0.5},
+    -- 输入框 / 下拉框
+    inputBg     = {0.10, 0.10, 0.14, 1},
+    inputBdr    = {0.40, 0.40, 0.45, 1},
+    inputFocus  = {0.20, 0.60, 1.00, 1},
+    -- 下拉框专用（比输入框稍亮，区分层次）
+    ddBg        = {0.50, 0.50, 0.55, 1},
+    ddBdr       = {0.65, 0.65, 0.70, 1},
+    -- 文字
+    text        = {0.85, 0.85, 0.90, 1},
+    textDim     = {0.45, 0.45, 0.50, 1},
+    textAccent  = {0.20, 0.70, 1.00, 1},
+    -- 列表
+    listBg      = {0.04, 0.04, 0.06, 0.8},
+    listHover   = {0.20, 0.50, 0.80, 0.3},
+    -- 标签
+    tabActiveBg = {0.10, 0.10, 0.14, 1},
+    tabActiveBdr= {0.20, 0.55, 1.00, 1},
+}
 
 -- ============================================
 -- 辅助函数
@@ -37,30 +75,176 @@ local function SilentCall(func, ...)
     if not ok then DEFAULT_CHAT_FRAME:AddMessage("|cffff0000" .. tostring(err) .. "|r") end
 end
 
--- 创建通用 Tooltip
+-- 创建通用 Tooltip（保留原有悬停效果 + Tooltip）
 local function SetupTooltip(widget, text)
+    local origOnEnter = widget:GetScript("OnEnter")
+    local origOnLeave = widget:GetScript("OnLeave")
+
     widget:SetScript("OnEnter", function(self)
+        if origOnEnter then origOnEnter(self) end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine(text, 1, 1, 1)
         GameTooltip:Show()
     end)
     widget:SetScript("OnLeave", function(self)
+        if origOnLeave then origOnLeave(self) end
         GameTooltip:Hide()
     end)
 end
 
--- 创建"选择+手动输入"行（角色/宠物/坐骑共用）
--- 返回 selectBtn, editBox, manualBtn, menuFrame
-local function CreateSelectRow(parent, prevWidget, config)
-    -- config: { selectName, selectLabel, selectTooltip, menuName,
-    --           data, order, onSelect,
-    --           editBoxName, editBoxSize, editBoxDefault, editBoxSavedVar,
-    --           manualName, manualLabel, manualTooltip, onManual }
+-- ============================================
+-- 现代UI组件工厂
+-- ============================================
 
-    local selectBtn = CreateFrame("Button", config.selectName, parent, "UIPanelButtonTemplate")
+-- 创建现代暗色按钮
+local function CreateModernButton(name, parent, width, height, text)
+    local btn = CreateFrame("Button", name, parent, "BackdropTemplate")
+    btn:SetSize(width, height)
+    btn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    btn:SetBackdropColor(unpack(T.btnBg))
+    btn:SetBackdropBorderColor(unpack(T.btnBorder))
+
+    local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    fs:SetAllPoints()
+    btn:SetFontString(fs)
+    btn:SetText(text)
+    btn:SetNormalFontObject("GameFontNormal")
+    btn:SetHighlightFontObject("GameFontHighlight")
+    btn:SetDisabledFontObject("GameFontDisable")
+
+    btn:SetScript("OnEnter", function(self)
+        if self:IsEnabled() then
+            self:SetBackdropColor(unpack(T.btnHover))
+            self:SetBackdropBorderColor(unpack(T.accent))
+        end
+    end)
+    btn:SetScript("OnLeave", function(self)
+        if self:IsEnabled() then
+            self:SetBackdropColor(unpack(T.btnBg))
+            self:SetBackdropBorderColor(unpack(T.btnBorder))
+        end
+    end)
+    btn:SetScript("OnDisable", function(self)
+        self:SetBackdropColor(unpack(T.btnDisBg))
+        self:SetBackdropBorderColor(unpack(T.btnDisBdr))
+    end)
+    btn:SetScript("OnEnable", function(self)
+        self:SetBackdropColor(unpack(T.btnBg))
+        self:SetBackdropBorderColor(unpack(T.btnBorder))
+    end)
+
+    return btn
+end
+
+-- 创建现代暗色输入框
+local function CreateModernEditBox(name, parent, width, height)
+    local editBox = CreateFrame("EditBox", name, parent, "BackdropTemplate")
+    editBox:SetSize(width, height)
+    editBox:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    editBox:SetBackdropColor(unpack(T.inputBg))
+    editBox:SetBackdropBorderColor(unpack(T.inputBdr))
+    editBox:SetAutoFocus(false)
+    editBox:SetFontObject("ChatFontNormal")
+    editBox:SetTextInsets(6, 6, 0, 0)
+
+    editBox:SetScript("OnEscapePressed", EditBox_ClearFocus)
+    editBox:SetScript("OnEditFocusGained", function(self)
+        EditBox_HighlightText(self)
+        self:SetBackdropBorderColor(unpack(T.inputFocus))
+    end)
+    editBox:SetScript("OnEditFocusLost", function(self)
+        EditBox_ClearHighlight(self)
+        self:SetBackdropBorderColor(unpack(T.inputBdr))
+    end)
+
+    return editBox
+end
+
+-- 美化下拉菜单（反色+着色）
+local function StyleDropdown(frame)
+    local name = frame:GetName()
+    if not name then return end
+
+    for _, region in ipairs({frame:GetRegions()}) do
+        if region:IsObjectType("Texture") then
+            region:SetDesaturated(true)
+            region:SetVertexColor(unpack(T.ddBg))
+        end
+    end
+
+    local text = _G[name .. "Text"]
+    if text then text:SetTextColor(unpack(T.text)) end
+
+    local button = _G[name .. "Button"]
+    if button then
+        for _, region in ipairs({button:GetRegions()}) do
+            if region:IsObjectType("Texture") then
+                region:SetDesaturated(true)
+                region:SetVertexColor(0.50, 0.50, 0.55, 1)
+            end
+        end
+        button:SetScript("OnEnter", function(self)
+            for _, region in ipairs({self:GetRegions()}) do
+                if region:IsObjectType("Texture") then
+                    region:SetVertexColor(unpack(T.accent))
+                end
+            end
+        end)
+        button:SetScript("OnLeave", function(self)
+            for _, region in ipairs({self:GetRegions()}) do
+                if region:IsObjectType("Texture") then
+                    region:SetVertexColor(0.50, 0.50, 0.55, 1)
+                end
+            end
+        end)
+    end
+
+    local label = _G[name .. "Label"]
+    if label then label:SetTextColor(unpack(T.textDim)) end
+end
+
+-- 美化滑块
+local function StyleSlider(slider)
+    local name = slider:GetName()
+    if not name then return end
+
+    for _, childName in ipairs({"Top", "Middle", "Bottom"}) do
+        local child = _G[name .. childName]
+        if child then
+            child:SetDesaturated(true)
+            child:SetVertexColor(0.12, 0.12, 0.15, 1)
+        end
+    end
+
+    local thumb = _G[name .. "Thumb"]
+    if thumb then
+        thumb:SetDesaturated(true)
+        thumb:SetVertexColor(unpack(T.accent))
+    end
+
+    local low = _G[name .. "Low"]
+    local high = _G[name .. "High"]
+    if low then low:SetTextColor(unpack(T.textDim)) end
+    if high then high:SetTextColor(unpack(T.textDim)) end
+
+    local label = _G[name .. "Text"]
+    if label then label:SetTextColor(unpack(T.text)) end
+end
+
+-- ============================================
+-- 创建"选择+手动输入"行（角色/宠物共用）
+-- ============================================
+local function CreateSelectRow(parent, prevWidget, config)
+    local selectBtn = CreateModernButton(config.selectName, parent, 121, 28, config.selectLabel)
     selectBtn:SetPoint("TOPLEFT", prevWidget, "BOTTOMLEFT", config.offsetX or 0, config.offsetY or -3)
-    selectBtn:SetSize(121, 30)
-    selectBtn:SetText(config.selectLabel)
     SetupTooltip(selectBtn, config.selectTooltip)
 
     local menuFrame = CreateFrame("Frame", config.menuName, parent, "UIDropDownMenuTemplate")
@@ -83,23 +267,41 @@ local function CreateSelectRow(parent, prevWidget, config)
         end
     end)
 
+    -- 使用自定义标志跟踪菜单状态
+    -- WoW在鼠标按下时自动关闭下拉菜单，且早于OnMouseDown事件，所以用OnEnter/OnLeave追踪鼠标位置来区分
+    local myMenuOpen = false
+    local mouseOverBtn = false
+
+    selectBtn:HookScript("OnEnter", function() mouseOverBtn = true end)
+    selectBtn:HookScript("OnLeave", function() mouseOverBtn = false end)
+
     selectBtn:SetScript("OnClick", function(self)
-        ToggleDropDownMenu(1, nil, menuFrame, self, 0, 0)
+        if myMenuOpen then
+            CloseDropDownMenus()
+            myMenuOpen = false
+        else
+            ToggleDropDownMenu(1, nil, menuFrame, self, 0, 0)
+            myMenuOpen = true
+        end
     end)
 
-    local editBox = CreateFrame("EditBox", config.editBoxName, parent, "BJ_InputBoxTemplate")
-    editBox:SetSize(config.editBoxSize or 85, 30)
-    editBox:SetPoint("LEFT", selectBtn, "RIGHT", 8, 0)
+    -- 下拉菜单被关闭时：鼠标在按钮上说明是点击按钮触发的关闭，不重置标志；
+    -- 鼠标不在按钮上说明是点击其他地方关闭的，需要重置标志
+    DropDownList1:HookScript("OnHide", function()
+        if not mouseOverBtn then
+            myMenuOpen = false
+        end
+    end)
+
+    local editBox = CreateModernEditBox(config.editBoxName, parent, config.editBoxSize or 85, 28)
+    editBox:SetPoint("LEFT", selectBtn, "RIGHT", 6, 0)
     editBox:SetText(iMorphToolsDBC[config.editBoxSavedVar] or config.editBoxDefault)
-    editBox:SetAutoFocus(false)
     editBox:SetScript("OnTextChanged", function(self)
         iMorphToolsDBC[config.editBoxSavedVar] = self:GetText()
     end)
 
-    local manualBtn = CreateFrame("Button", config.manualName, parent, "UIPanelButtonTemplate")
-    manualBtn:SetSize(121, 30)
-    manualBtn:SetPoint("LEFT", editBox, "RIGHT", 1, 0)
-    manualBtn:SetText(config.manualLabel)
+    local manualBtn = CreateModernButton(config.manualName, parent, 121, 28, config.manualLabel)
+    manualBtn:SetPoint("LEFT", editBox, "RIGHT", 4, 0)
     SetupTooltip(manualBtn, config.manualTooltip)
 
     manualBtn:SetScript("OnClick", function()
@@ -116,22 +318,74 @@ end
 -- 主界面初始化
 -- ============================================
 function InitUI()
-    -- 主界面框架
-    local mainFrame = CreateFrame("Frame", "iMorphToolsMainFrame", UIParent, "BasicFrameTemplate")
+    -- 主界面框架（现代暗色）
+    local mainFrame = CreateFrame("Frame", "iMorphToolsMainFrame", UIParent, "BackdropTemplate")
     mainFrame:SetSize(360, 550)
-    mainFrame.TitleText:SetText("|cff40C7EBiMorphTools")
+    mainFrame:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    mainFrame:SetBackdropColor(unpack(T.bg))
+    mainFrame:SetBackdropBorderColor(unpack(T.border))
     mainFrame:SetMovable(true)
     mainFrame:SetClampedToScreen(true)
-    mainFrame:SetPropagateKeyboardInput(true)
     mainFrame:SetFrameStrata("LOW")
     mainFrame:SetPoint("TOPRIGHT", Minimap, "BOTTOMRIGHT", 0, -20)
     mainFrame:Hide()
+    mainFrame:EnableMouse(true)
 
+    -- ESC 关闭
+    tinsert(UISpecialFrames, "iMorphToolsMainFrame")
+
+    -- 拖拽
     mainFrame:SetScript("OnMouseUp", function(self) self:StopMovingOrSizing() end)
     mainFrame:SetScript("OnMouseDown", function(self) self:StartMoving() end)
-    mainFrame:SetScript("OnKeyDown", function(self, key)
-        if key == "ESCAPE" then self:Hide() end
+
+    -- ======== 标题栏 ========
+    local titleBar = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
+    titleBar:SetHeight(28)
+    titleBar:SetPoint("TOPLEFT", 1, -1)
+    titleBar:SetPoint("TOPRIGHT", -1, -1)
+    titleBar:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    titleBar:SetBackdropColor(unpack(T.titleBg))
+    titleBar:SetBackdropBorderColor(unpack(T.titleBorder))
+    titleBar:EnableMouse(true)
+    titleBar:SetScript("OnMouseDown", function() mainFrame:StartMoving() end)
+    titleBar:SetScript("OnMouseUp", function() mainFrame:StopMovingOrSizing() end)
+
+    local titleText = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    titleText:SetPoint("CENTER", titleBar, "CENTER", 0, 0)
+    titleText:SetText("|cff3399FFiMorphTools|r")
+
+    -- 关闭按钮
+    local closeBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
+    closeBtn:SetSize(20, 20)
+    closeBtn:SetPoint("TOPRIGHT", -4, -4)
+    closeBtn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    closeBtn:SetBackdropColor(0.12, 0.12, 0.15, 1)
+    closeBtn:SetBackdropBorderColor(0.28, 0.28, 0.32, 1)
+    local closeTxt = closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    closeTxt:SetAllPoints()
+    closeTxt:SetText("X")
+    closeBtn:SetFontString(closeTxt)
+    closeBtn:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(0.7, 0.1, 0.1, 1)
+        self:SetBackdropBorderColor(0.9, 0.2, 0.2, 1)
     end)
+    closeBtn:SetScript("OnLeave", function(self)
+        self:SetBackdropColor(0.12, 0.12, 0.15, 1)
+        self:SetBackdropBorderColor(0.28, 0.28, 0.32, 1)
+    end)
+    closeBtn:SetScript("OnClick", function() mainFrame:Hide() end)
 
     -- 小地图按钮
     iMorphToolsMiniMapButton = CreateiMorphToolsMiniMapButton(mainFrame)
@@ -140,18 +394,14 @@ function InitUI()
     local preWidget
 
     -- ======== 重置按钮 ========
-    local resetBtn = CreateFrame("Button", nil, mainFrame, "UIPanelButtonTemplate")
-    resetBtn:SetSize(330, 25)
-    resetBtn:SetPoint("TOP", mainFrame, "TOP", 0, -28)
-    resetBtn:SetText("重置初始模型")
+    local resetBtn = CreateModernButton(nil, mainFrame, 330, 25, "重置初始模型")
+    resetBtn:SetPoint("TOP", mainFrame, "TOP", 0, -32)
     resetBtn:SetScript("OnClick", ResetIds)
     preWidget = resetBtn
 
     -- ======== 便捷改模指令集 ========
-    local cmdBtn = CreateFrame("Button", "CmdBtn", mainFrame, "UIPanelButtonTemplate")
-    cmdBtn:SetSize(330, 25)
+    local cmdBtn = CreateModernButton("CmdBtn", mainFrame, 330, 25, "便捷改模指令集")
     cmdBtn:SetPoint("TOP", preWidget, "BOTTOM", 0, -5)
-    cmdBtn:SetText("便捷改模指令集")
     SetupTooltip(cmdBtn, "点击选择需要执行的改模指令\n选中后立即生效")
 
     local cmdMenu = CreateFrame("Frame", "CmdMenu", mainFrame, "UIDropDownMenuTemplate")
@@ -168,23 +418,37 @@ function InitUI()
         end
     end)
 
+    local cmdMenuOpen = false
+    local cmdMouseOverBtn = false
+
+    cmdBtn:HookScript("OnEnter", function() cmdMouseOverBtn = true end)
+    cmdBtn:HookScript("OnLeave", function() cmdMouseOverBtn = false end)
+
     cmdBtn:SetScript("OnClick", function(self)
-        ToggleDropDownMenu(1, nil, cmdMenu, self, 0, 0)
+        if cmdMenuOpen then
+            CloseDropDownMenus()
+            cmdMenuOpen = false
+        else
+            ToggleDropDownMenu(1, nil, cmdMenu, self, 0, 0)
+            cmdMenuOpen = true
+        end
+    end)
+
+    DropDownList1:HookScript("OnHide", function()
+        if not cmdMouseOverBtn then
+            cmdMenuOpen = false
+        end
     end)
     preWidget = cmdBtn
 
     -- ======== 修改套装 ========
     local savedSetText = iMorphToolsDBC.EditBox2Text or ""
-    local editBox2 = CreateFrame("EditBox", "editBox2", mainFrame, "BJ_InputBoxTemplate")
-    editBox2:SetSize(165, 30)
+    local editBox2 = CreateModernEditBox("editBox2", mainFrame, 165, 28)
     editBox2:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 10, -3)
     editBox2:SetText(savedSetText)
-    editBox2:SetAutoFocus(false)
 
-    local buttonSetChange = CreateFrame("Button", "buttonSetChange", mainFrame, "UIPanelButtonTemplate")
-    buttonSetChange:SetSize(125, 30)
+    local buttonSetChange = CreateModernButton("buttonSetChange", mainFrame, 125, 28, "修改套装")
     buttonSetChange:SetPoint("LEFT", editBox2, "RIGHT", 30, 0)
-    buttonSetChange:SetText("修改套装")
     SetupTooltip(buttonSetChange, "编辑框直接输入DKT3、QST6，PVP系列仅采集了S1，T9系列分BL/LM（例\"QSLMT9\"）。也可自行查询编号手动输入")
 
     buttonSetChange:SetScript("OnClick", function()
@@ -227,22 +491,20 @@ function InitUI()
     preWidget = selectPetBtn
 
     -- ======== 坐骑改模 ========
-    local selectMountBtn = CreateFrame("Button", "SelectMountBtn", mainFrame, "UIPanelButtonTemplate")
+    local selectMountBtn = CreateModernButton("SelectMountBtn", mainFrame, 121, 28, "点击坐骑改模")
     selectMountBtn:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 0, -3)
-    selectMountBtn:SetSize(121, 30)
-    selectMountBtn:SetText("坐骑改模")
     SetupTooltip(selectMountBtn, "点击打开坐骑选择列表")
 
-    -- 坐骑选择弹出框（带滚动条）
+    -- 坐骑选择弹出框（现代暗色）
     local mountFrame = CreateFrame("Frame", "IMTMountFrame", UIParent, "BackdropTemplate")
     mountFrame:SetSize(320, 460)
     mountFrame:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true, tileSize = 32, edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 }
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
     })
-    mountFrame:SetBackdropColor(0, 0, 0, 0.95)
+    mountFrame:SetBackdropColor(unpack(T.bg))
+    mountFrame:SetBackdropBorderColor(unpack(T.border))
     mountFrame:EnableMouse(true)
     mountFrame:SetMovable(true)
     mountFrame:RegisterForDrag("LeftButton")
@@ -251,40 +513,193 @@ function InitUI()
     mountFrame:SetFrameStrata("DIALOG")
     mountFrame:Hide()
 
-    local mountCloseBtn = CreateFrame("Button", nil, mountFrame, "UIPanelCloseButton")
-    mountCloseBtn:SetPoint("TOPRIGHT", 2, 2)
+    -- 弹出框标题栏
+    local mountTitleBar = CreateFrame("Frame", nil, mountFrame, "BackdropTemplate")
+    mountTitleBar:SetHeight(26)
+    mountTitleBar:SetPoint("TOPLEFT", 1, -1)
+    mountTitleBar:SetPoint("TOPRIGHT", -1, -1)
+    mountTitleBar:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    mountTitleBar:SetBackdropColor(unpack(T.titleBg))
+    mountTitleBar:SetBackdropBorderColor(unpack(T.titleBorder))
+    mountTitleBar:EnableMouse(true)
+    mountTitleBar:SetScript("OnMouseDown", function() mountFrame:StartMoving() end)
+    mountTitleBar:SetScript("OnMouseUp", function() mountFrame:StopMovingOrSizing() end)
+
+    local mountTitleText = mountTitleBar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    mountTitleText:SetPoint("CENTER", mountTitleBar, "CENTER", 0, 0)
+    mountTitleText:SetText("|cff3399FF坐骑改模|r")
+
+    -- 弹出框关闭按钮
+    local mountCloseBtn = CreateFrame("Button", nil, mountTitleBar, "BackdropTemplate")
+    mountCloseBtn:SetSize(18, 18)
+    mountCloseBtn:SetPoint("TOPRIGHT", -4, -4)
+    mountCloseBtn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    mountCloseBtn:SetBackdropColor(0.12, 0.12, 0.15, 1)
+    mountCloseBtn:SetBackdropBorderColor(0.28, 0.28, 0.32, 1)
+    local mountCloseTxt = mountCloseBtn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    mountCloseTxt:SetAllPoints()
+    mountCloseTxt:SetText("X")
+    mountCloseBtn:SetFontString(mountCloseTxt)
+    mountCloseBtn:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(0.7, 0.1, 0.1, 1)
+        self:SetBackdropBorderColor(0.9, 0.2, 0.2, 1)
+    end)
+    mountCloseBtn:SetScript("OnLeave", function(self)
+        self:SetBackdropColor(0.12, 0.12, 0.15, 1)
+        self:SetBackdropBorderColor(0.28, 0.28, 0.32, 1)
+    end)
+    mountCloseBtn:SetScript("OnClick", function() mountFrame:Hide() end)
 
     -- 分类标签按钮
     local MOUNT_BTN_H = 22
     local MOUNT_BTN_W = 275
     local MOUNT_TAB_TOP = -30
-    local MOUNT_LIST_TOP = -60
+    local MOUNT_LIST_TOP = -56
     local MOUNT_LIST_BOTTOM = 12
     local MOUNT_VISIBLE = math.floor((460 + MOUNT_LIST_TOP - MOUNT_LIST_BOTTOM) / MOUNT_BTN_H)
 
     local mountSelectedGroup = IMT.MountGroups[1] and IMT.MountGroups[1][1] or ""
     local mountScrollOffset = 0
-    local mountDirty = false
 
-    -- 滚动条（纯视觉 + 交互，不触发直接更新）
-    local mountSlider = CreateFrame("Slider", nil, mountFrame, "UIPanelScrollBarTemplate")
-    mountSlider:SetPoint("TOPRIGHT", -6, MOUNT_LIST_TOP + 10)
-    mountSlider:SetPoint("BOTTOMRIGHT", -6, MOUNT_LIST_BOTTOM + 10)
+    -- 前向声明：刷新函数（定义在按钮池之后）
+    local IMTMountScrollFrame_Update
+
+    -- 滚动条（自定义，避免 UIPanelScrollBarTemplate 兼容问题）
+    local mountSlider = CreateFrame("Slider", "IMTMountSlider", mountFrame, "BackdropTemplate")
+    mountSlider:SetPoint("TOPRIGHT", -14, MOUNT_LIST_TOP + 10)
+    mountSlider:SetPoint("BOTTOMRIGHT", -14, MOUNT_LIST_BOTTOM + 10)
+    mountSlider:SetWidth(12)
     mountSlider:SetOrientation("VERTICAL")
     mountSlider:SetMinMaxValues(0, 0)
     mountSlider:SetValueStep(1)
     mountSlider:SetObeyStepOnDrag(true)
     mountSlider:SetValue(0)
+    mountSlider:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    mountSlider:SetBackdropColor(0.06, 0.06, 0.08, 0.6)
+    mountSlider:SetBackdropBorderColor(0.20, 0.20, 0.24, 0.6)
+    mountSlider:SetThumbTexture("Interface\\Buttons\\WHITE8x8")
+    local thumb = mountSlider:GetThumbTexture()
+    thumb:SetSize(10, 30)
+    thumb:SetColorTexture(unpack(T.accent))
+
+    -- 上/下按钮
+    local scrollUpBtn = CreateFrame("Button", nil, mountFrame, "BackdropTemplate")
+    scrollUpBtn:SetSize(12, 12)
+    scrollUpBtn:SetPoint("BOTTOM", mountSlider, "TOP", 0, 2)
+    scrollUpBtn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    scrollUpBtn:SetBackdropColor(0.14, 0.14, 0.18, 1)
+    scrollUpBtn:SetBackdropBorderColor(0.35, 0.35, 0.40, 1)
+    local upArrow = scrollUpBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    upArrow:SetPoint("CENTER")
+    upArrow:SetText("▲")
+    scrollUpBtn:SetScript("OnEnter", function(self)
+        self:SetBackdropBorderColor(unpack(T.accent))
+    end)
+    scrollUpBtn:SetScript("OnLeave", function(self)
+        self:SetBackdropBorderColor(0.35, 0.35, 0.40, 1)
+    end)
+    scrollUpBtn:SetScript("OnClick", function()
+        local newVal = math.max(0, mountScrollOffset - 3)
+        if newVal ~= mountScrollOffset then
+            mountScrollOffset = newVal
+            IMTMountScrollFrame_Update()
+        end
+    end)
+
+    local scrollDownBtn = CreateFrame("Button", nil, mountFrame, "BackdropTemplate")
+    scrollDownBtn:SetSize(12, 12)
+    scrollDownBtn:SetPoint("TOP", mountSlider, "BOTTOM", 0, -2)
+    scrollDownBtn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    scrollDownBtn:SetBackdropColor(0.14, 0.14, 0.18, 1)
+    scrollDownBtn:SetBackdropBorderColor(0.35, 0.35, 0.40, 1)
+    local downArrow = scrollDownBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    downArrow:SetPoint("CENTER")
+    downArrow:SetText("▼")
+    scrollDownBtn:SetScript("OnEnter", function(self)
+        self:SetBackdropBorderColor(unpack(T.accent))
+    end)
+    scrollDownBtn:SetScript("OnLeave", function(self)
+        self:SetBackdropBorderColor(0.35, 0.35, 0.40, 1)
+    end)
+    scrollDownBtn:SetScript("OnClick", function()
+        local _, maxVal = mountSlider:GetMinMaxValues()
+        local newVal = math.min(maxVal, mountScrollOffset + 3)
+        if newVal ~= mountScrollOffset then
+            mountScrollOffset = newVal
+            IMTMountScrollFrame_Update()
+        end
+    end)
+
+    -- 按钮池
+    mountSlider.buttonPool = {}
+    for i = 1, MOUNT_VISIBLE do
+        local btn = CreateFrame("Button", nil, mountFrame, "BackdropTemplate")
+        btn:SetSize(MOUNT_BTN_W, MOUNT_BTN_H)
+        btn:SetPoint("TOPLEFT", 12, MOUNT_LIST_TOP - (i - 1) * MOUNT_BTN_H)
+        btn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btn:SetBackdropColor(unpack(T.listBg))
+        btn:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
+        btn:EnableMouseWheel(true)
+
+        local fontStr = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        fontStr:SetAllPoints()
+        fontStr:SetJustifyH("LEFT")
+        fontStr:SetPoint("LEFT", 6, 0)
+        btn:SetFontString(fontStr)
+        btn:SetNormalFontObject("GameFontNormal")
+        btn:SetHighlightFontObject("GameFontHighlight")
+
+        btn:SetScript("OnEnter", function(self)
+            self:SetBackdropColor(unpack(T.listHover))
+            self:SetBackdropBorderColor(unpack(T.accent))
+        end)
+        btn:SetScript("OnLeave", function(self)
+            self:SetBackdropColor(unpack(T.listBg))
+            self:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
+        end)
+        btn:SetScript("OnMouseWheel", function(self, delta)
+            mountFrame:GetScript("OnMouseWheel")(mountFrame, delta)
+        end)
+        btn:SetScript("OnClick", function(self)
+            if self.mountID then
+                SafeCall(SetMount, self.mountID)
+            end
+        end)
+        mountSlider.buttonPool[i] = btn
+    end
 
     -- 核心刷新函数
-    local function IMTMountScrollFrame_Update()
+    IMTMountScrollFrame_Update = function()
         local groupData
         for _, g in ipairs(IMT.MountGroups) do
             if g[1] == mountSelectedGroup then groupData = g[2]; break end
         end
         local count = groupData and #groupData or 0
         local maxScroll = math.max(0, count - MOUNT_VISIBLE)
-        -- 同步滑块范围（不触发回调）
         mountSlider:SetMinMaxValues(0, maxScroll)
         if mountScrollOffset > maxScroll then
             mountScrollOffset = maxScroll
@@ -296,6 +711,8 @@ function InitUI()
             if idx <= count then
                 btn:SetText(groupData[idx][1])
                 btn.mountID = groupData[idx][2]
+                btn:SetBackdropColor(unpack(T.listBg))
+                btn:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
                 btn:Show()
             else
                 btn:Hide()
@@ -303,22 +720,10 @@ function InitUI()
         end
     end
 
-    -- 脏标记 + OnUpdate：保证刷新在帧渲染时执行
-    mountFrame:SetScript("OnUpdate", function(self)
-        if mountDirty then
-            mountDirty = false
-            IMTMountScrollFrame_Update()
-        end
-    end)
-
-    local function IMTMountRequestUpdate()
-        mountDirty = true
-    end
-
-    -- 滑块拖动只改偏移量，标记脏
+    -- 滑块拖动
     mountSlider:SetScript("OnValueChanged", function(self, value)
         mountScrollOffset = math.floor(value + 0.5)
-        mountDirty = true
+        IMTMountScrollFrame_Update()
     end)
 
     -- 鼠标滚轮
@@ -327,17 +732,17 @@ function InitUI()
         local newVal = math.max(0, math.min(maxVal, mountScrollOffset - delta))
         if newVal ~= mountScrollOffset then
             mountScrollOffset = newVal
-            mountDirty = true
+            IMTMountScrollFrame_Update()
         end
     end)
 
     -- 标签按钮
     local mountTabBtns = {}
     for gi, group in ipairs(IMT.MountGroups) do
-        local tab = CreateFrame("Button", nil, mountFrame, "UIPanelButtonTemplate")
-        tab:SetSize(55, 22)
-        tab:SetText(group[1])
+        local tab = CreateModernButton(nil, mountFrame, 55, 20, group[1])
         tab:SetNormalFontObject("GameFontNormalSmall")
+        tab:SetHighlightFontObject("GameFontHighlightSmall")
+        tab:SetDisabledFontObject("GameFontDisableSmall")
         local prevTab = mountTabBtns[#mountTabBtns]
         if prevTab then
             tab:SetPoint("TOPLEFT", prevTab, "TOPRIGHT", 2, 0)
@@ -351,40 +756,14 @@ function InitUI()
                 t:SetEnabled(true)
             end
             tab:SetEnabled(false)
-            IMTMountRequestUpdate()
+            -- 直接调用刷新 + 延迟双保险
+            IMTMountScrollFrame_Update()
+            C_Timer.After(0, IMTMountScrollFrame_Update)
         end)
         if group[1] == mountSelectedGroup then
             tab:SetEnabled(false)
         end
         mountTabBtns[#mountTabBtns + 1] = tab
-    end
-
-    -- 按钮池
-    mountSlider.buttonPool = {}
-    for i = 1, MOUNT_VISIBLE do
-        local btn = CreateFrame("Button", nil, mountFrame)
-        btn:SetSize(MOUNT_BTN_W, MOUNT_BTN_H)
-        btn:SetPoint("TOPLEFT", 12, MOUNT_LIST_TOP - (i - 1) * MOUNT_BTN_H)
-        btn:EnableMouseWheel(true)
-        btn:SetScript("OnMouseWheel", function(self, delta)
-            mountFrame:GetScript("OnMouseWheel")(mountFrame, delta)
-        end)
-        local fontStr = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        fontStr:SetAllPoints()
-        fontStr:SetJustifyH("LEFT")
-        btn:SetFontString(fontStr)
-        btn:SetNormalFontObject("GameFontNormal")
-        btn:SetHighlightFontObject("GameFontHighlight")
-        local ht = btn:CreateTexture(nil, "HIGHLIGHT")
-        ht:SetTexture("Interface\\Buttons\\UI-Listbox-Highlight2")
-        ht:SetAllPoints()
-        ht:SetAlpha(0.4)
-        btn:SetScript("OnClick", function(self)
-            if self.mountID then
-                SafeCall(SetMount, self.mountID)
-            end
-        end)
-        mountSlider.buttonPool[i] = btn
     end
 
     selectMountBtn:SetScript("OnClick", function(self)
@@ -399,19 +778,15 @@ function InitUI()
         end
     end)
 
-    local editBoxMount = CreateFrame("EditBox", "editBox3", mainFrame, "BJ_InputBoxTemplate")
-    editBoxMount:SetSize(85, 30)
-    editBoxMount:SetPoint("LEFT", selectMountBtn, "RIGHT", 8, 0)
+    local editBoxMount = CreateModernEditBox("editBox3", mainFrame, 85, 28)
+    editBoxMount:SetPoint("LEFT", selectMountBtn, "RIGHT", 6, 0)
     editBoxMount:SetText(iMorphToolsDBC.MountModelID or "21974")
-    editBoxMount:SetAutoFocus(false)
     editBoxMount:SetScript("OnTextChanged", function(self)
         iMorphToolsDBC.MountModelID = self:GetText()
     end)
 
-    local manualMountBtn = CreateFrame("Button", "buttonMountChange", mainFrame, "UIPanelButtonTemplate")
-    manualMountBtn:SetSize(121, 30)
-    manualMountBtn:SetPoint("LEFT", editBoxMount, "RIGHT", 1, 0)
-    manualMountBtn:SetText("手动坐骑改模")
+    local manualMountBtn = CreateModernButton("buttonMountChange", mainFrame, 121, 28, "手动坐骑改模")
+    manualMountBtn:SetPoint("LEFT", editBoxMount, "RIGHT", 4, 0)
     SetupTooltip(manualMountBtn, "输入坐骑模型ID后点击修改")
 
     manualMountBtn:SetScript("OnClick", function()
@@ -424,10 +799,8 @@ function InitUI()
     preWidget = selectMountBtn
 
     -- ======== 种族改模 ========
-    local selectRaceBtn = CreateFrame("Button", "SelectRaceBtn", mainFrame, "UIPanelButtonTemplate")
+    local selectRaceBtn = CreateModernButton("SelectRaceBtn", mainFrame, 170, 28, "点击修改种族模型")
     selectRaceBtn:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 0, -3)
-    selectRaceBtn:SetSize(170, 30)
-    selectRaceBtn:SetText("点击修改种族模型")
     SetupTooltip(selectRaceBtn, "点击选择种族直接生效")
 
     local raceMenu = CreateFrame("Frame", "RaceSelectMenu", mainFrame, "UIDropDownMenuTemplate")
@@ -448,16 +821,22 @@ function InitUI()
         end
     end)
 
+    local raceDdWasVisible = false
+    selectRaceBtn:SetScript("OnMouseDown", function(self)
+        raceDdWasVisible = DropDownList1:IsShown()
+    end)
     selectRaceBtn:SetScript("OnClick", function(self)
-        ToggleDropDownMenu(1, nil, raceMenu, self, 0, 0)
+        if raceDdWasVisible then
+            CloseDropDownMenus()
+        else
+            ToggleDropDownMenu(1, nil, raceMenu, self, 0, 0)
+        end
     end)
     preWidget = selectRaceBtn
 
     -- ======== 变性 ========
-    local buttonGenderChange = CreateFrame("Button", "buttonGenderChange", mainFrame, "UIPanelButtonTemplate")
-    buttonGenderChange:SetSize(160, 30)
-    buttonGenderChange:SetPoint("LEFT", selectRaceBtn, "RIGHT", 8, 0)
-    buttonGenderChange:SetText("变性")
+    local buttonGenderChange = CreateModernButton("buttonGenderChange", mainFrame, 160, 28, "变性")
+    buttonGenderChange:SetPoint("LEFT", selectRaceBtn, "RIGHT", 6, 0)
     SetupTooltip(buttonGenderChange, "点击改变角色性别")
     buttonGenderChange:SetScript("OnClick", function()
         SetGender()
@@ -473,6 +852,7 @@ function InitUI()
     dropdownShapeshifts:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", -17, -3)
     UIDropDownMenu_SetWidth(dropdownShapeshifts, 100)
     UIDropDownMenu_SetText(dropdownShapeshifts, "变形形态")
+    StyleDropdown(dropdownShapeshifts)
 
     UIDropDownMenu_Initialize(dropdownShapeshifts, function(self, level)
         if level ~= 1 then return end
@@ -505,6 +885,7 @@ function InitUI()
     dropdownShapeshiftModels:SetPoint("LEFT", dropdownShapeshifts, "RIGHT", -30, 0)
     UIDropDownMenu_SetWidth(dropdownShapeshiftModels, 85)
     UIDropDownMenu_SetText(dropdownShapeshiftModels, "形态模型")
+    StyleDropdown(dropdownShapeshiftModels)
 
     UIDropDownMenu_Initialize(dropdownShapeshiftModels, function(self, level)
         if level ~= 1 then return end
@@ -541,20 +922,16 @@ function InitUI()
     UIDropDownMenu_SetText(dropdownShapeshiftModels, selectedShapeshiftModelName or "幽灵虎")
 
     -- 形态模型ID编辑框
-    local editBox10 = CreateFrame("EditBox", "editBox10", mainFrame, "BJ_InputBoxTemplate")
-    editBox10:SetSize(45, 30)
+    local editBox10 = CreateModernEditBox("editBox10", mainFrame, 45, 28)
     editBox10:SetPoint("LEFT", dropdownShapeshiftModels, "RIGHT", -8, 0)
     editBox10:SetText(iMorphToolsDBC.ShapeshiftModelID or "21974")
-    editBox10:SetAutoFocus(false)
     editBox10:SetScript("OnTextChanged", function(self)
         iMorphToolsDBC.ShapeshiftModelID = self:GetText()
     end)
 
     -- 改变形按钮
-    local buttonShapeshiftChange = CreateFrame("Button", "buttonShapeshiftChange", mainFrame, "UIPanelButtonTemplate")
-    buttonShapeshiftChange:SetSize(65, 30)
-    buttonShapeshiftChange:SetPoint("LEFT", editBox10, "RIGHT", 1, 0)
-    buttonShapeshiftChange:SetText("改形态")
+    local buttonShapeshiftChange = CreateModernButton("buttonShapeshiftChange", mainFrame, 65, 28, "改形态")
+    buttonShapeshiftChange:SetPoint("LEFT", editBox10, "RIGHT", 4, 0)
     SetupTooltip(buttonShapeshiftChange, "选择形态和形态模型，点击修改")
 
     buttonShapeshiftChange:SetScript("OnClick", function()
@@ -575,8 +952,10 @@ function InitUI()
     scaleSlider:SetWidth(330)
     scaleSlider.text = _G[scaleSlider:GetName().."Text"]
     scaleSlider.text:SetText("模型缩放: 1.00")
+    scaleSlider.text:SetTextColor(unpack(T.text))
     _G[scaleSlider:GetName().."Low"]:SetText("缩小")
     _G[scaleSlider:GetName().."High"]:SetText("放大")
+    StyleSlider(scaleSlider)
     scaleSlider:SetScript("OnValueChanged", function(self)
         local scale = self:GetValue()
         self.text:SetText(format("模型缩放: %.2f", scale))
@@ -593,8 +972,10 @@ function InitUI()
     petScaleSlider:SetWidth(330)
     petScaleSlider.text = _G[petScaleSlider:GetName().."Text"]
     petScaleSlider.text:SetText("宠物缩放: 1.00")
+    petScaleSlider.text:SetTextColor(unpack(T.text))
     _G[petScaleSlider:GetName().."Low"]:SetText("缩小")
     _G[petScaleSlider:GetName().."High"]:SetText("放大")
+    StyleSlider(petScaleSlider)
     petScaleSlider:SetScript("OnValueChanged", function(self)
         local scale = self:GetValue()
         self.text:SetText(format("宠物缩放: %.2f", scale))
@@ -608,6 +989,7 @@ function InitUI()
     local dropDown = CreateFrame("Frame", "WPDemoDropDown2", mainFrame, "UIDropDownMenuTemplate")
     dropDown:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", -18, -14)
     UIDropDownMenu_SetWidth(dropDown, 150)
+    StyleDropdown(dropDown)
 
     UIDropDownMenu_Initialize(dropDown, function(self, level)
         if level ~= 1 then return end
@@ -630,19 +1012,15 @@ function InitUI()
     end)
     UIDropDownMenu_SetText(dropDown, "栏位: " .. (IMT.SlotIDs[selectedSlotID] or "未知栏位"))
 
-    local textFrame = CreateFrame("EditBox", "WPDemoTextFrame", mainFrame, "BJ_InputBoxTemplate")
-    textFrame:SetSize(85, 30)
+    local textFrame = CreateModernEditBox("WPDemoTextFrame", mainFrame, 85, 28)
     textFrame:SetPoint("LEFT", dropDown, "RIGHT", -8, 0)
     textFrame:SetText(iMorphToolsDBC.modelID or "物品编号")
-    textFrame:SetAutoFocus(false)
     textFrame:SetScript("OnTextChanged", function()
         iMorphToolsDBC.modelID = textFrame:GetText()
     end)
 
-    local buttonFrame = CreateFrame("Button", "WPDemoButtonFrame", mainFrame, "UIPanelButtonTemplate")
-    buttonFrame:SetSize(75, 30)
-    buttonFrame:SetPoint("LEFT", textFrame, "RIGHT", 1, 0)
-    buttonFrame:SetText("改装备")
+    local buttonFrame = CreateModernButton("WPDemoButtonFrame", mainFrame, 75, 28, "改装备")
+    buttonFrame:SetPoint("LEFT", textFrame, "RIGHT", 4, 0)
     SetupTooltip(buttonFrame, "选择装备栏位然后在编辑框填写物品ID，点击修改")
 
     buttonFrame:SetScript("OnClick", function()
@@ -668,6 +1046,7 @@ function InitUI()
         dropdown:SetPoint(unpack(point))
         UIDropDownMenu_SetWidth(dropdown, 112.5)
         UIDropDownMenu_SetText(dropdown, savedName or "请选择")
+        StyleDropdown(dropdown)
 
         UIDropDownMenu_Initialize(dropdown, function(self, level)
             if level ~= 1 then return end
@@ -716,10 +1095,8 @@ function InitUI()
         end
     )
 
-    local bjfmButton = CreateFrame("Button", "bjfmButton", mainFrame, "UIPanelButtonTemplate")
-    bjfmButton:SetSize(75, 30)
-    bjfmButton:SetPoint("LEFT", offHandDropdown, "RIGHT", -16, 3)
-    bjfmButton:SetText("武器附魔")
+    local bjfmButton = CreateModernButton("bjfmButton", mainFrame, 75, 28, "武器附魔")
+    bjfmButton:SetPoint("LEFT", offHandDropdown, "RIGHT", -16, 2)
     SetupTooltip(bjfmButton, "选择主副手附魔效果，点击修改")
 
     bjfmButton:SetScript("OnClick", function()
@@ -746,6 +1123,7 @@ function InitUI()
     dynamicSpellDropdown:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 0, 0)
     UIDropDownMenu_SetWidth(dynamicSpellDropdown, 82.5)
     UIDropDownMenu_SetText(dynamicSpellDropdown, savedDynamicSpellName or "动态选择法术")
+    StyleDropdown(dynamicSpellDropdown)
 
     local function InitializeDynamicSpellDropdown(self, level)
         local info = UIDropDownMenu_CreateInfo()
@@ -819,17 +1197,13 @@ function InitUI()
     UIDropDownMenu_Initialize(dynamicSpellDropdown, InitializeDynamicSpellDropdown)
 
     -- 技能ID编辑框
-    local editBox1 = CreateFrame("EditBox", "editBox1", mainFrame, "BJ_InputBoxTemplate")
-    editBox1:SetSize(50, 30)
+    local editBox1 = CreateModernEditBox("editBox1", mainFrame, 50, 28)
     editBox1:SetPoint("LEFT", dynamicSpellDropdown, "RIGHT", -8, 0)
     editBox1:SetText(savedEditBoxContent or "")
-    editBox1:SetAutoFocus(false)
 
     -- 改技能按钮
-    local buttonSpellChange = CreateFrame("Button", "buttonSpellChange", mainFrame, "UIPanelButtonTemplate")
-    buttonSpellChange:SetSize(80, 30)
-    buttonSpellChange:SetPoint("LEFT", editBox1, "RIGHT", 0, 0)
-    buttonSpellChange:SetText("》改技能》")
+    local buttonSpellChange = CreateModernButton("buttonSpellChange", mainFrame, 80, 28, "》改技能》")
+    buttonSpellChange:SetPoint("LEFT", editBox1, "RIGHT", 4, 0)
     SetupTooltip(buttonSpellChange, "技能显示效果修改：\n编辑框可填写触发类饰品，ID自己查询填入即可\n若编辑框填写了ID则忽略左侧选择框")
 
     -- 技能效果下拉
@@ -837,6 +1211,7 @@ function InitUI()
     dropdownSpells:SetPoint("LEFT", buttonSpellChange, "RIGHT", -15, 0)
     UIDropDownMenu_SetWidth(dropdownSpells, 82.5)
     UIDropDownMenu_SetText(dropdownSpells, savedSelectedSpellName)
+    StyleDropdown(dropdownSpells)
 
     UIDropDownMenu_Initialize(dropdownSpells, function(self, level)
         local info = UIDropDownMenu_CreateInfo()
@@ -903,6 +1278,7 @@ function InitUI()
     dropdownPlayKit:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 0, -5)
     UIDropDownMenu_SetWidth(dropdownPlayKit, 90)
     UIDropDownMenu_SetText(dropdownPlayKit, selectedPlayKitName)
+    StyleDropdown(dropdownPlayKit)
 
     UIDropDownMenu_Initialize(dropdownPlayKit, function(self, level)
         local info = UIDropDownMenu_CreateInfo()
@@ -924,6 +1300,7 @@ function InitUI()
     dropdownPlayKitOpt:SetPoint("LEFT", dropdownPlayKit, "RIGHT", -10, 0)
     UIDropDownMenu_SetWidth(dropdownPlayKitOpt, 60)
     UIDropDownMenu_SetText(dropdownPlayKitOpt, optLabels[selectedPlayKitOpt] or "动态")
+    StyleDropdown(dropdownPlayKitOpt)
 
     UIDropDownMenu_Initialize(dropdownPlayKitOpt, function(self, level)
         local info = UIDropDownMenu_CreateInfo()
@@ -946,12 +1323,9 @@ function InitUI()
         UIDropDownMenu_AddButton(info)
     end)
 
-    local buttonPK = CreateFrame("Button", "buttonPK", mainFrame, "UIPanelButtonTemplate")
-    buttonPK:SetSize(50, 24)
+    local buttonPK = CreateModernButton("buttonPK", mainFrame, 50, 24, "应用")
     buttonPK:SetPoint("LEFT", dropdownPlayKitOpt, "RIGHT", -5, 2)
-    buttonPK:SetText("应用")
     SetupTooltip(buttonPK, "执行 .playkit 命令应用选中的视觉套件\n动态=0 套件动作执行一次\n静态=1 套件保持固定效果")
-
 
     buttonPK:SetScript("OnClick", function()
         if selectedPlayKitID and selectedPlayKitID ~= "" then
@@ -964,30 +1338,59 @@ function InitUI()
     preWidget = dropdownPlayKit
 
     -- 版本文字
-    local version = mainFrame:CreateFontString()
+    local version = mainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     version:SetPoint("BOTTOM", mainFrame, "BOTTOM", 0, 8)
-    version:SetFontObject(GameFontNormal)
-    version:SetText("|cFFA335EEiMorphTools|cFFFF7D0Aby|cFFF58CBA聖殿十字军")
+    version:SetText("|cff3399FFiMorphTools|cffffcc00by|cffff80ff聖殿十字军|r")
     version:Show()
+
+    -- 分隔线装饰
+    local function CreateSeparator(parent, anchorWidget)
+        local sep = parent:CreateTexture(nil, "ARTWORK")
+        sep:SetHeight(1)
+        sep:SetPoint("TOPLEFT", anchorWidget, "BOTTOMLEFT", 5, -2)
+        sep:SetPoint("TOPRIGHT", anchorWidget, "BOTTOMRIGHT", -5, -2)
+        sep:SetColorTexture(0.20, 0.55, 1.00, 0.25)
+        return sep
+    end
+
+    CreateSeparator(mainFrame, resetBtn)
 end
 
 -- ============================================
 -- 小地图按钮
 -- ============================================
 function CreateiMorphToolsMiniMapButton(mainFrame)
-    local btn = CreateFrame("Button", "iMorphToolsMiniMapButton", Minimap, "UICheckButtonTemplate")
+    local btn = CreateFrame("Button", "iMorphToolsMiniMapButton", Minimap, "BackdropTemplate")
     btn:SetPoint("TOPLEFT", Minimap, "TOPLEFT", 15, -110)
-    btn:SetSize(26, 26)
-    btn:SetNormalTexture("Interface\\AddOns\\iMorphTools\\icon")
-    btn:SetPushedTexture("Interface\\AddOns\\iMorphTools\\icon")
-    btn:Show()
+    btn:SetSize(30, 30)
+    btn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    btn:SetBackdropColor(0.06, 0.06, 0.08, 0.9)
+    btn:SetBackdropBorderColor(0.25, 0.25, 0.30, 1)
+
+    local icon = btn:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(24, 24)
+    icon:SetPoint("CENTER")
+    icon:SetTexture("Interface\\AddOns\\iMorphTools\\icon")
+    icon:SetDesaturated(false)
+
+    local highlight = btn:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetAllPoints(icon)
+    highlight:SetColorTexture(0.20, 0.55, 1.00, 0.25)
 
     btn:SetScript("OnEnter", function(self)
+        self:SetBackdropBorderColor(unpack(T.accent))
         GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
         GameTooltip:SetText("iMorphTools\n右键按住拖动\n左键打开界面")
         GameTooltip:Show()
     end)
-    btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    btn:SetScript("OnLeave", function(self)
+        self:SetBackdropBorderColor(0.25, 0.25, 0.30, 1)
+        GameTooltip:Hide()
+    end)
 
     btn:SetScript("OnMouseUp", function(self, button)
         if button == "LeftButton" then
