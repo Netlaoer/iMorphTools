@@ -227,18 +227,200 @@ function InitUI()
     preWidget = selectPetBtn
 
     -- ======== 坐骑改模 ========
-    local selectMountBtn, _, _, _ = CreateSelectRow(mainFrame, preWidget, {
-        selectName = "SelectMountBtn", selectLabel = "点击坐骑改模",
-        selectTooltip = "点击选择坐骑模型直接生效",
-        menuName = "MountSelectMenu",
-        data = IMT.MountIDs, order = IMT.MountOrder,
-        onSelect = SetMount,
-        editBoxName = "editBox3", editBoxDefault = "21974",
-        editBoxSavedVar = "MountModelID",
-        manualName = "buttonMountChange", manualLabel = "手动坐骑改模",
-        manualTooltip = "输入坐骑模型ID后点击修改",
-        onManual = SetMount,
+    local selectMountBtn = CreateFrame("Button", "SelectMountBtn", mainFrame, "UIPanelButtonTemplate")
+    selectMountBtn:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 0, -3)
+    selectMountBtn:SetSize(121, 30)
+    selectMountBtn:SetText("坐骑改模")
+    SetupTooltip(selectMountBtn, "点击打开坐骑选择列表")
+
+    -- 坐骑选择弹出框（带滚动条）
+    local mountFrame = CreateFrame("Frame", "IMTMountFrame", UIParent, "BackdropTemplate")
+    mountFrame:SetSize(320, 460)
+    mountFrame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true, tileSize = 32, edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 }
     })
+    mountFrame:SetBackdropColor(0, 0, 0, 0.95)
+    mountFrame:EnableMouse(true)
+    mountFrame:SetMovable(true)
+    mountFrame:RegisterForDrag("LeftButton")
+    mountFrame:SetScript("OnDragStart", mountFrame.StartMoving)
+    mountFrame:SetScript("OnDragStop", mountFrame.StopMovingOrSizing)
+    mountFrame:SetFrameStrata("DIALOG")
+    mountFrame:Hide()
+
+    local mountCloseBtn = CreateFrame("Button", nil, mountFrame, "UIPanelCloseButton")
+    mountCloseBtn:SetPoint("TOPRIGHT", 2, 2)
+
+    -- 分类标签按钮
+    local MOUNT_BTN_H = 22
+    local MOUNT_BTN_W = 275
+    local MOUNT_TAB_TOP = -30
+    local MOUNT_LIST_TOP = -60
+    local MOUNT_LIST_BOTTOM = 12
+    local MOUNT_VISIBLE = math.floor((460 + MOUNT_LIST_TOP - MOUNT_LIST_BOTTOM) / MOUNT_BTN_H)
+
+    local mountSelectedGroup = IMT.MountGroups[1] and IMT.MountGroups[1][1] or ""
+    local mountScrollOffset = 0
+    local mountDirty = false
+
+    -- 滚动条（纯视觉 + 交互，不触发直接更新）
+    local mountSlider = CreateFrame("Slider", nil, mountFrame, "UIPanelScrollBarTemplate")
+    mountSlider:SetPoint("TOPRIGHT", -6, MOUNT_LIST_TOP + 10)
+    mountSlider:SetPoint("BOTTOMRIGHT", -6, MOUNT_LIST_BOTTOM + 10)
+    mountSlider:SetOrientation("VERTICAL")
+    mountSlider:SetMinMaxValues(0, 0)
+    mountSlider:SetValueStep(1)
+    mountSlider:SetObeyStepOnDrag(true)
+    mountSlider:SetValue(0)
+
+    -- 核心刷新函数
+    local function IMTMountScrollFrame_Update()
+        local groupData
+        for _, g in ipairs(IMT.MountGroups) do
+            if g[1] == mountSelectedGroup then groupData = g[2]; break end
+        end
+        local count = groupData and #groupData or 0
+        local maxScroll = math.max(0, count - MOUNT_VISIBLE)
+        -- 同步滑块范围（不触发回调）
+        mountSlider:SetMinMaxValues(0, maxScroll)
+        if mountScrollOffset > maxScroll then
+            mountScrollOffset = maxScroll
+        end
+        mountSlider:SetValue(mountScrollOffset)
+        for i = 1, MOUNT_VISIBLE do
+            local btn = mountSlider.buttonPool[i]
+            local idx = mountScrollOffset + i
+            if idx <= count then
+                btn:SetText(groupData[idx][1])
+                btn.mountID = groupData[idx][2]
+                btn:Show()
+            else
+                btn:Hide()
+            end
+        end
+    end
+
+    -- 脏标记 + OnUpdate：保证刷新在帧渲染时执行
+    mountFrame:SetScript("OnUpdate", function(self)
+        if mountDirty then
+            mountDirty = false
+            IMTMountScrollFrame_Update()
+        end
+    end)
+
+    local function IMTMountRequestUpdate()
+        mountDirty = true
+    end
+
+    -- 滑块拖动只改偏移量，标记脏
+    mountSlider:SetScript("OnValueChanged", function(self, value)
+        mountScrollOffset = math.floor(value + 0.5)
+        mountDirty = true
+    end)
+
+    -- 鼠标滚轮
+    mountFrame:SetScript("OnMouseWheel", function(self, delta)
+        local _, maxVal = mountSlider:GetMinMaxValues()
+        local newVal = math.max(0, math.min(maxVal, mountScrollOffset - delta))
+        if newVal ~= mountScrollOffset then
+            mountScrollOffset = newVal
+            mountDirty = true
+        end
+    end)
+
+    -- 标签按钮
+    local mountTabBtns = {}
+    for gi, group in ipairs(IMT.MountGroups) do
+        local tab = CreateFrame("Button", nil, mountFrame, "UIPanelButtonTemplate")
+        tab:SetSize(55, 22)
+        tab:SetText(group[1])
+        tab:SetNormalFontObject("GameFontNormalSmall")
+        local prevTab = mountTabBtns[#mountTabBtns]
+        if prevTab then
+            tab:SetPoint("TOPLEFT", prevTab, "TOPRIGHT", 2, 0)
+        else
+            tab:SetPoint("TOPLEFT", 10, MOUNT_TAB_TOP)
+        end
+        tab:SetScript("OnClick", function()
+            mountSelectedGroup = group[1]
+            mountScrollOffset = 0
+            for _, t in ipairs(mountTabBtns) do
+                t:SetEnabled(true)
+            end
+            tab:SetEnabled(false)
+            IMTMountRequestUpdate()
+        end)
+        if group[1] == mountSelectedGroup then
+            tab:SetEnabled(false)
+        end
+        mountTabBtns[#mountTabBtns + 1] = tab
+    end
+
+    -- 按钮池
+    mountSlider.buttonPool = {}
+    for i = 1, MOUNT_VISIBLE do
+        local btn = CreateFrame("Button", nil, mountFrame)
+        btn:SetSize(MOUNT_BTN_W, MOUNT_BTN_H)
+        btn:SetPoint("TOPLEFT", 12, MOUNT_LIST_TOP - (i - 1) * MOUNT_BTN_H)
+        btn:EnableMouseWheel(true)
+        btn:SetScript("OnMouseWheel", function(self, delta)
+            mountFrame:GetScript("OnMouseWheel")(mountFrame, delta)
+        end)
+        local fontStr = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        fontStr:SetAllPoints()
+        fontStr:SetJustifyH("LEFT")
+        btn:SetFontString(fontStr)
+        btn:SetNormalFontObject("GameFontNormal")
+        btn:SetHighlightFontObject("GameFontHighlight")
+        local ht = btn:CreateTexture(nil, "HIGHLIGHT")
+        ht:SetTexture("Interface\\Buttons\\UI-Listbox-Highlight2")
+        ht:SetAllPoints()
+        ht:SetAlpha(0.4)
+        btn:SetScript("OnClick", function(self)
+            if self.mountID then
+                SafeCall(SetMount, self.mountID)
+            end
+        end)
+        mountSlider.buttonPool[i] = btn
+    end
+
+    selectMountBtn:SetScript("OnClick", function(self)
+        if mountFrame:IsShown() then
+            mountFrame:Hide()
+        else
+            mountFrame:ClearAllPoints()
+            mountFrame:SetPoint("TOPLEFT", self, "BOTTOMLEFT", 0, -5)
+            mountScrollOffset = 0
+            IMTMountScrollFrame_Update()
+            mountFrame:Show()
+        end
+    end)
+
+    local editBoxMount = CreateFrame("EditBox", "editBox3", mainFrame, "BJ_InputBoxTemplate")
+    editBoxMount:SetSize(85, 30)
+    editBoxMount:SetPoint("LEFT", selectMountBtn, "RIGHT", 8, 0)
+    editBoxMount:SetText(iMorphToolsDBC.MountModelID or "21974")
+    editBoxMount:SetAutoFocus(false)
+    editBoxMount:SetScript("OnTextChanged", function(self)
+        iMorphToolsDBC.MountModelID = self:GetText()
+    end)
+
+    local manualMountBtn = CreateFrame("Button", "buttonMountChange", mainFrame, "UIPanelButtonTemplate")
+    manualMountBtn:SetSize(121, 30)
+    manualMountBtn:SetPoint("LEFT", editBoxMount, "RIGHT", 1, 0)
+    manualMountBtn:SetText("手动坐骑改模")
+    SetupTooltip(manualMountBtn, "输入坐骑模型ID后点击修改")
+
+    manualMountBtn:SetScript("OnClick", function()
+        local inputID = tonumber(editBoxMount:GetText())
+        if inputID then
+            SetMount(inputID)
+        end
+    end)
+
     preWidget = selectMountBtn
 
     -- ======== 种族改模 ========
