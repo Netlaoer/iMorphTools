@@ -1,0 +1,12 @@
+﻿## Interface: 120005
+## Version: 1.0.3
+## Title: iMorphTools
+## Author: 聖殿十字军
+## SavedVariables: iMorphToolsDB
+## SavedVariablesPerCharacter: iMorphToolsDBC
+## Notes: iMorphTools改模工具，输入/imt打开面板
+
+
+Templates.xml
+ui.lua
+diy.lua
