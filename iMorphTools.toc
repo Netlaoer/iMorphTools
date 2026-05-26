@@ -7,7 +7,6 @@
 ## Notes: iMorphTools改模工具，输入/imt打开面板
 
 
-Templates.xml
 data.lua
 iMorph.lua
 ui.lua
