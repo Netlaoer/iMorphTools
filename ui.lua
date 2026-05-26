@@ -14,10 +14,26 @@ end
 
 -- 安静调用：抑制函数执行时的 info 输出（如 Customizations）
 local function SilentCall(func, ...)
-    local old = DEFAULT_CHAT_FRAME.AddMessage
-    DEFAULT_CHAT_FRAME.AddMessage = function() end
+    local saved = {}
+    for i = 1, NUM_CHAT_WINDOWS do
+        local cf = _G["ChatFrame" .. i]
+        if cf and cf.AddMessage then
+            saved[i] = cf.AddMessage
+            cf.AddMessage = function(self, msg, ...)
+                if msg and type(msg) == "string" then
+                    if msg:find("%(info%)") or msg:find("model id:") then return end
+                end
+                return saved[i](self, msg, ...)
+            end
+        end
+    end
     local ok, err = pcall(func, ...)
-    DEFAULT_CHAT_FRAME.AddMessage = old
+    for i = 1, NUM_CHAT_WINDOWS do
+        local cf = _G["ChatFrame" .. i]
+        if cf and saved[i] then
+            cf.AddMessage = saved[i]
+        end
+    end
     if not ok then DEFAULT_CHAT_FRAME:AddMessage("|cffff0000" .. tostring(err) .. "|r") end
 end
 
@@ -691,58 +707,85 @@ function InitUI()
     preWidget = dynamicSpellDropdown
 
     -- ======== 视觉套件 (playkit) ========
-    local editBoxPK = CreateFrame("EditBox", "editBoxPK", mainFrame, "BJ_InputBoxTemplate")
-    editBoxPK:SetSize(80, 30)
-    editBoxPK:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 25, -15)
-    editBoxPK:SetText(iMorphToolsDBC.PlayKitID or "36399")
-    editBoxPK:SetAutoFocus(false)
-    editBoxPK:SetScript("OnTextChanged", function(self)
-        iMorphToolsDBC.PlayKitID = self:GetText()
+    local selectedPlayKitID = iMorphToolsDBC.PlayKitID or "36399"
+    local selectedPlayKitOpt = iMorphToolsDBC.PlayKitOpt or "0"
+    local selectedPlayKitName = "白虎特效"
+    for _, pk in ipairs(IMT.PlayKitDefs) do
+        if pk[2] == selectedPlayKitID then
+            selectedPlayKitName = pk[1]
+            break
+        end
+    end
+
+    local dropdownPlayKit = CreateFrame("Frame", "PlayKitDropdown", mainFrame, "UIDropDownMenuTemplate")
+    dropdownPlayKit:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 0, -5)
+    UIDropDownMenu_SetWidth(dropdownPlayKit, 90)
+    UIDropDownMenu_SetText(dropdownPlayKit, selectedPlayKitName)
+
+    UIDropDownMenu_Initialize(dropdownPlayKit, function(self, level)
+        local info = UIDropDownMenu_CreateInfo()
+        for _, pk in ipairs(IMT.PlayKitDefs) do
+            info.text = pk[1]
+            info.func = function()
+                selectedPlayKitID = pk[2]
+                selectedPlayKitName = pk[1]
+                iMorphToolsDBC.PlayKitID = pk[2]
+                UIDropDownMenu_SetText(dropdownPlayKit, pk[1])
+                CloseDropDownMenus()
+            end
+            UIDropDownMenu_AddButton(info)
+        end
     end)
 
-    local editBoxPKOpt = CreateFrame("EditBox", "editBoxPKOpt", mainFrame, "BJ_InputBoxTemplate")
-    editBoxPKOpt:SetSize(40, 30)
-    editBoxPKOpt:SetPoint("LEFT", editBoxPK, "RIGHT", 10, 0)
-    editBoxPKOpt:SetText(iMorphToolsDBC.PlayKitOpt or "1")
-    editBoxPKOpt:SetAutoFocus(false)
-    editBoxPKOpt:SetScript("OnTextChanged", function(self)
-        iMorphToolsDBC.PlayKitOpt = self:GetText()
+    local optLabels = {["0"] = "动态", ["1"] = "静态"}
+    local dropdownPlayKitOpt = CreateFrame("Frame", "PlayKitOptDropdown", mainFrame, "UIDropDownMenuTemplate")
+    dropdownPlayKitOpt:SetPoint("LEFT", dropdownPlayKit, "RIGHT", -10, 0)
+    UIDropDownMenu_SetWidth(dropdownPlayKitOpt, 60)
+    UIDropDownMenu_SetText(dropdownPlayKitOpt, optLabels[selectedPlayKitOpt] or "动态")
+
+    UIDropDownMenu_Initialize(dropdownPlayKitOpt, function(self, level)
+        local info = UIDropDownMenu_CreateInfo()
+        info.text = "动态"
+        info.func = function()
+            selectedPlayKitOpt = "0"
+            iMorphToolsDBC.PlayKitOpt = "0"
+            UIDropDownMenu_SetText(dropdownPlayKitOpt, "动态")
+            CloseDropDownMenus()
+        end
+        UIDropDownMenu_AddButton(info)
+        info = UIDropDownMenu_CreateInfo()
+        info.text = "静态"
+        info.func = function()
+            selectedPlayKitOpt = "1"
+            iMorphToolsDBC.PlayKitOpt = "1"
+            UIDropDownMenu_SetText(dropdownPlayKitOpt, "静态")
+            CloseDropDownMenus()
+        end
+        UIDropDownMenu_AddButton(info)
     end)
 
     local buttonPK = CreateFrame("Button", "buttonPK", mainFrame, "UIPanelButtonTemplate")
-    buttonPK:SetSize(90, 30)
-    buttonPK:SetPoint("LEFT", editBoxPKOpt, "RIGHT", 5, 0)
-    buttonPK:SetText("视觉套件")
-    SetupTooltip(buttonPK, "执行 .playkit 命令\n左侧输入套件ID，右侧输入值(0=动态 1=静态)")
+    buttonPK:SetSize(50, 24)
+    buttonPK:SetPoint("LEFT", dropdownPlayKitOpt, "RIGHT", -5, 2)
+    buttonPK:SetText("应用")
+    SetupTooltip(buttonPK, "执行 .playkit 命令应用选中的视觉套件\n动态=0 套件动作执行一次\n静态=1 套件保持固定效果")
+
 
     buttonPK:SetScript("OnClick", function()
-        local kitID = editBoxPK:GetText()
-        local opt = editBoxPKOpt:GetText()
-        if kitID and kitID ~= "" then
+        if selectedPlayKitID and selectedPlayKitID ~= "" then
             local editBox = ChatFrame1EditBox
-            editBox:SetText(".playkit " .. kitID .. " " .. (opt or "1"))
+            editBox:SetText(".playkit " .. selectedPlayKitID .. " " .. selectedPlayKitOpt)
             ChatEdit_SendText(editBox, 0)
         end
     end)
 
-    -- 套件ID标签
-    local pkLabel1 = mainFrame:CreateFontString()
-    pkLabel1:SetPoint("BOTTOMLEFT", editBoxPK, "TOPLEFT", 0, 1)
-    pkLabel1:SetFontObject(GameFontNormalSmall)
-    pkLabel1:SetText("视觉套件ID")
-
-    local pkLabel2 = mainFrame:CreateFontString()
-    pkLabel2:SetPoint("BOTTOMLEFT", editBoxPKOpt, "TOPLEFT", 0, 1)
-    pkLabel2:SetFontObject(GameFontNormalSmall)
-    pkLabel2:SetText("值")
-
-    preWidget = editBoxPK
+    preWidget = dropdownPlayKit
 
     -- 版本文字
     local version = mainFrame:CreateFontString()
     version:SetPoint("BOTTOM", mainFrame, "BOTTOM", 0, 8)
     version:SetFontObject(GameFontNormal)
-    version:SetText("|cFFA335EEiMorphTools|cFFFF7D0Aby|cFFABD473聖殿十字军")
+    version:SetText("|cFFA335EEiMorphTools|cFFFF7D0Aby|cFFF58CBA聖殿十字军")
     version:Show()
 end
 
