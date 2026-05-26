@@ -61,6 +61,7 @@ local CmdDefs = {
     {"双紫灰烬", function() SetItem(16, 120978, 30); SetItem(17, 120978, 30) end},
     {"黄灰烬", function() SetItem(16, 120978, 32) end},
     {"双黄灰烬", function() SetItem(16, 120978, 32); SetItem(17, 120978, 32) end},
+    {"双赶猪棒", function() SetItem(16, 77572); SetItem(17, 77572) end},
 }
 IMT.CmdSets, IMT.CmdOrder = BuildIDTable(CmdDefs)
 
