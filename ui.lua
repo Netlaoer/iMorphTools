@@ -12,6 +12,15 @@ local function SafeCall(func, id)
     end
 end
 
+-- 安静调用：抑制函数执行时的 info 输出（如 Customizations）
+local function SilentCall(func, ...)
+    local old = DEFAULT_CHAT_FRAME.AddMessage
+    DEFAULT_CHAT_FRAME.AddMessage = function() end
+    local ok, err = pcall(func, ...)
+    DEFAULT_CHAT_FRAME.AddMessage = old
+    if not ok then DEFAULT_CHAT_FRAME:AddMessage("|cffff0000" .. tostring(err) .. "|r") end
+end
+
 -- 创建通用 Tooltip
 local function SetupTooltip(widget, text)
     widget:SetScript("OnEnter", function(self)
@@ -93,7 +102,7 @@ end
 function InitUI()
     -- 主界面框架
     local mainFrame = CreateFrame("Frame", "iMorphToolsMainFrame", UIParent, "BasicFrameTemplate")
-    mainFrame:SetSize(360, 480)
+    mainFrame:SetSize(360, 550)
     mainFrame.TitleText:SetText("|cff40C7EBiMorphTools")
     mainFrame:SetMovable(true)
     mainFrame:SetClampedToScreen(true)
@@ -234,7 +243,7 @@ function InitUI()
                 info.text = raceName
                 info.value = raceName
                 info.func = function(button)
-                    SafeCall(function(id) SetRace(id); Customizations() end, IMT.RaceOptions[button.value])
+                    SafeCall(function(id) SetRace(id); SilentCall(Customizations) end, IMT.RaceOptions[button.value])
                 end
                 UIDropDownMenu_AddButton(info)
             end
@@ -254,7 +263,7 @@ function InitUI()
     SetupTooltip(buttonGenderChange, "点击改变角色性别")
     buttonGenderChange:SetScript("OnClick", function()
         SetGender()
-        Customizations()
+        SilentCall(Customizations)
     end)
 
     -- ======== 变形形态 ========
@@ -670,6 +679,54 @@ function InitUI()
     end)
 
     preWidget = dynamicSpellDropdown
+
+    -- ======== 视觉套件 (playkit) ========
+    local editBoxPK = CreateFrame("EditBox", "editBoxPK", mainFrame, "BJ_InputBoxTemplate")
+    editBoxPK:SetSize(80, 30)
+    editBoxPK:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 25, -15)
+    editBoxPK:SetText(iMorphToolsDBC.PlayKitID or "36399")
+    editBoxPK:SetAutoFocus(false)
+    editBoxPK:SetScript("OnTextChanged", function(self)
+        iMorphToolsDBC.PlayKitID = self:GetText()
+    end)
+
+    local editBoxPKOpt = CreateFrame("EditBox", "editBoxPKOpt", mainFrame, "BJ_InputBoxTemplate")
+    editBoxPKOpt:SetSize(40, 30)
+    editBoxPKOpt:SetPoint("LEFT", editBoxPK, "RIGHT", 10, 0)
+    editBoxPKOpt:SetText(iMorphToolsDBC.PlayKitOpt or "1")
+    editBoxPKOpt:SetAutoFocus(false)
+    editBoxPKOpt:SetScript("OnTextChanged", function(self)
+        iMorphToolsDBC.PlayKitOpt = self:GetText()
+    end)
+
+    local buttonPK = CreateFrame("Button", "buttonPK", mainFrame, "UIPanelButtonTemplate")
+    buttonPK:SetSize(90, 30)
+    buttonPK:SetPoint("LEFT", editBoxPKOpt, "RIGHT", 5, 0)
+    buttonPK:SetText("视觉套件")
+    SetupTooltip(buttonPK, "执行 .playkit 命令\n左侧输入套件ID，右侧输入值(0=动态 1=静态)")
+
+    buttonPK:SetScript("OnClick", function()
+        local kitID = editBoxPK:GetText()
+        local opt = editBoxPKOpt:GetText()
+        if kitID and kitID ~= "" then
+            local editBox = ChatFrame1EditBox
+            editBox:SetText(".playkit " .. kitID .. " " .. (opt or "1"))
+            ChatEdit_SendText(editBox, 0)
+        end
+    end)
+
+    -- 套件ID标签
+    local pkLabel1 = mainFrame:CreateFontString()
+    pkLabel1:SetPoint("BOTTOMLEFT", editBoxPK, "TOPLEFT", 0, 1)
+    pkLabel1:SetFontObject(GameFontNormalSmall)
+    pkLabel1:SetText("视觉套件ID")
+
+    local pkLabel2 = mainFrame:CreateFontString()
+    pkLabel2:SetPoint("BOTTOMLEFT", editBoxPKOpt, "TOPLEFT", 0, 1)
+    pkLabel2:SetFontObject(GameFontNormalSmall)
+    pkLabel2:SetText("值")
+
+    preWidget = editBoxPK
 
     -- 版本文字
     local version = mainFrame:CreateFontString()
