@@ -8,5 +8,6 @@
 
 
 Templates.xml
+data.lua
 ui.lua
 diy.lua
