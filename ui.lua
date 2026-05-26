@@ -641,20 +641,30 @@ function InitUI()
     UIDropDownMenu_SetText(dropdownSpells, savedSelectedSpellName)
 
     UIDropDownMenu_Initialize(dropdownSpells, function(self, level)
-        if level ~= 1 then return end
         local info = UIDropDownMenu_CreateInfo()
-        for _, spellName in ipairs(IMT.SpellOrder) do
-            local spellID = IMT.SpellNames[spellName]
-            if spellID then
-                info.text = spellName
-                info.value = spellID
-                info.checked = (spellName == savedSelectedSpellName)
-                info.func = function()
-                    savedSelectedSpellName = spellName
-                    iMorphToolsDBC.selectedSpellName = spellName
-                    UIDropDownMenu_SetText(dropdownSpells, spellName)
-                end
+        if level == 1 then
+            for gi, group in ipairs(IMT.SpellGroups) do
+                info.text = group[1]
+                info.value = gi
+                info.hasArrow = true
+                info.notCheckable = true
                 UIDropDownMenu_AddButton(info)
+            end
+        elseif level == 2 then
+            local gi = UIDROPDOWNMENU_MENU_VALUE
+            local group = IMT.SpellGroups[gi]
+            if group then
+                for _, spell in ipairs(group[2]) do
+                    info.text = spell[1]
+                    info.value = spell[2]
+                    info.checked = (spell[1] == savedSelectedSpellName)
+                    info.func = function()
+                        savedSelectedSpellName = spell[1]
+                        iMorphToolsDBC.selectedSpellName = spell[1]
+                        UIDropDownMenu_SetText(dropdownSpells, spell[1])
+                    end
+                    UIDropDownMenu_AddButton(info, level)
+                end
             end
         end
     end)

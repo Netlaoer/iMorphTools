@@ -20,93 +20,46 @@ end
 -- ============================================
 -- 便捷改模指令集
 -- ============================================
-IMT.CmdSets = {
-    ["主手风剑"] = function() SetItem(16, 19019) end,
-    ["副手风剑"] = function() SetItem(17, 19019) end,
-    ["主手堕落灰烬"] = function() SetItem(16, 22691) end,
-    ["副手堕落灰烬"] = function() SetItem(17, 22691) end,
-    ["晴空万里"] = function() SetWeather(0, 0) end,
-    ["蛋盾"] = function() SetItem(17, 32375) end,
-    ["橙弓"] = function() SetItem(18, 34334) end,
-    ["主手霜之哀伤"] = function() SetItem(16, 33350) end,
-    ["副手霜之哀伤"] = function() SetItem(17, 33350) end,
-    ["主手瓦王筷子"] = function() SetItem(16, 45899) end,
-    ["副手瓦王筷子"] = function() SetItem(17, 45899) end,
-    ["主手血吼"] = function() SetItem(16, 30414) end,
-    ["副手血吼"] = function() SetItem(17, 30414) end,
-    ["主手灰烬使者"] = function() SetItem(16, 50442) end,
-    ["副手灰烬使者"] = function() SetItem(17, 50442) end,
-    ["双风剑"] = function() SetItem(16, 19019); SetItem(17, 19019) end,
-    ["双哀伤"] = function() SetItem(16, 33350); SetItem(17, 33350) end,
-    ["双灰烬"] = function() SetItem(16, 50442); SetItem(17, 50442) end,
-    ["双瓦王筷子"] = function() SetItem(16, 45899); SetItem(17, 45899) end,
-    ["红色战刃"] = function() SetItem(16, 18583); SetItem(17, 18584) end,
-    ["双蛋刀"] = function() SetItemSet(699) end,
-    ["双堕灰"] = function() SetItem(16, 22691); SetItem(17, 22691) end,
-    ["板甲大元帅"] = function() SetItemSet(384) end,
-    ["板甲督军"] = function() SetItemSet(383) end,
-    ["骑士绿伪T2"] = function() SetItemSet(784) end,
-    ["法师督军"] = function() SetItemSet(387) end,
-    ["炎魔的珠宝"] = function() SetItem(1, 95474) end,
-    ["永冬之冠"] = function() SetItem(1, 95475) end,
-    ["骑士紫伪T2"] = function()
-        SetItem(1, 27790); SetItem(3, 27539); SetItem(5, 27897);
-        SetItem(10, 27457); SetItem(6, 27548); SetItem(7, 27748);
-        SetItem(8, 28221); SetItem(9, 27489);
-    end,
-    ["骑士264T10"] = function()
+local CmdDefs = {
+    {"主手风剑", function() SetItem(16, 19019) end},
+    {"副手风剑", function() SetItem(17, 19019) end},
+    {"主手堕落灰烬", function() SetItem(16, 22691) end},
+    {"副手堕落灰烬", function() SetItem(17, 22691) end},
+    {"晴空万里", function() SetWeather(0, 0) end},
+    {"蛋盾", function() SetItem(17, 32375) end},
+    {"橙弓", function() SetItem(18, 34334) end},
+    {"主手霜之哀伤", function() SetItem(16, 33350) end},
+    {"副手霜之哀伤", function() SetItem(17, 33350) end},
+    {"主手瓦王筷子", function() SetItem(16, 45899) end},
+    {"副手瓦王筷子", function() SetItem(17, 45899) end},
+    {"双风剑", function() SetItem(16, 19019); SetItem(17, 19019) end},
+    {"双哀伤", function() SetItem(16, 33350); SetItem(17, 33350) end},
+    {"双瓦王筷子", function() SetItem(16, 45899); SetItem(17, 45899) end},
+    {"红色战刃", function() SetItem(16, 18583); SetItem(17, 18584) end},
+    {"双蛋刀", function() SetItemSet(699) end},
+    {"双堕灰", function() SetItem(16, 22691); SetItem(17, 22691) end},
+    {"板甲大元帅", function() SetItemSet(384) end},
+    {"板甲督军", function() SetItemSet(383) end},
+    {"骑士绿伪T2", function() SetItemSet(784) end},
+    {"骑士264T10", function()
         SetItem(1, 51167); SetItem(3, 51166); SetItem(5, 51165);
         SetItem(10, 51169); SetItem(7, 51168); SetItem(6, 50010);
-    end,
-    ["战士277T10"] = function()
-        SetItem(1, 51227); SetItem(3, 51229); SetItem(5, 51225);
-        SetItem(10, 51226); SetItem(7, 51228);
-    end,
-    ["观星清除DPS地板技能"] = function()
-        SetSpell(49938, 48982); SetSpell(49067, 48982);
-        SetSpell(48819, 48982); SetSpell(42926, 48982);
-        SetSpell(42925, 48982); SetSpell(425777, 48982);
-    end,
-    ["主手影之哀伤"] = function() SetItem(16, 51303) end,
-    ["副手影之哀伤"] = function() SetItem(17, 51303) end,
-    ["双影之哀伤"] = function() SetItem(16, 51303); SetItem(17, 51303) end,
-    ["主手米锤"] = function() SetItem(16, 22805) end,
-    ["主手灾变之刃"] = function() SetItem(16, 32373) end,
-    ["主手辛洛斯"] = function() SetItem(16, 19921) end,
-    ["主手绝世"] = function() SetItem(16, 19323) end,
-    ["主手龙之召唤"] = function() SetItem(16, 10847) end,
-    ["主手沙赫拉姆黑剑"] = function() SetItem(16, 12590) end,
-    ["骑士黄金挑战套"] = function()
-        SetItem(1, 90100); SetItem(3, 90102); SetItem(5, 90098);
-        SetItem(6, 90096); SetItem(7, 90101); SetItem(8, 90097);
-        SetItem(9, 90103); SetItem(10, 90099);
-    end,
-    ["提布的炽炎长剑"] = function() SetItem(16, 1728) end,
-    ["瑞文戴尔之剑"] = function() SetItem(16, 13505) end,
-    ["天启"] = function() SetItem(16, 128403) end,
-    ["双天启"] = function() SetItem(16, 128403); SetItem(17, 128403) end,
-    ["祈福"] = function() SetItem(16, 18608) end,
-    ["咒逐"] = function() SetItem(16, 18609) end,
-    ["阿提什"] = function() SetItem(16, 22632) end,
-    ["双米锤"] = function() SetItem(16, 22805); SetItem(17, 22805) end,
-    ["洛卡特拉"] = function() SetItem(16, 18715) end,
+    end},
+    {"主手影之哀伤", function() SetItem(16, 51303) end},
+    {"副手影之哀伤", function() SetItem(17, 51303) end},
+    {"双影之哀伤", function() SetItem(16, 51303); SetItem(17, 51303) end},
+    {"主手龙之召唤", function() SetItem(16, 10847) end},
+    {"瑞文戴尔之剑", function() SetItem(16, 13505) end},
+    {"红天启", function() SetItem(16, 128403, 31) end},
+    {"双红天启", function() SetItem(16, 128403, 31); SetItem(17, 128403, 31) end},
+    {"绿天启", function() SetItem(16, 128403, 30) end},
+    {"双绿天启", function() SetItem(16, 128403, 30); SetItem(17, 128403, 30) end},
+    {"蓝天启", function() SetItem(16, 128403, 29) end},
+    {"双蓝天启", function() SetItem(16, 128403, 29); SetItem(17, 128403, 29) end},
 }
+IMT.CmdSets, IMT.CmdOrder = BuildIDTable(CmdDefs)
 
-IMT.CmdOrder = {
-    "主手风剑", "副手风剑", "主手堕落灰烬", "副手堕落灰烬",
-    "晴空万里", "蛋盾", "橙弓", "主手霜之哀伤", "副手霜之哀伤",
-    "主手瓦王筷子", "副手瓦王筷子", "主手血吼", "副手血吼",
-    "主手灰烬使者", "副手灰烬使者", "双风剑", "双哀伤",
-    "双灰烬", "双瓦王筷子", "红色战刃", "双蛋刀", "双堕灰",
-    "板甲大元帅", "板甲督军", "骑士绿伪T2", "法师督军",
-    "炎魔的珠宝", "永冬之冠", "骑士紫伪T2", "骑士264T10",
-    "战士277T10", "观星清除DPS地板技能",
-    "主手影之哀伤", "副手影之哀伤", "双影之哀伤", "主手米锤",
-    "主手灾变之刃", "主手辛洛斯", "主手绝世", "主手龙之召唤",
-    "主手沙赫拉姆黑剑", "骑士黄金挑战套",
-    "提布的炽炎长剑", "瑞文戴尔之剑", "天启", "双天启",
-    "祈福", "咒逐", "阿提什", "双米锤", "洛卡特拉",
-}
+
 
 -- ============================================
 -- 套装映射
@@ -400,6 +353,7 @@ IMT.SlotOrder = {1, 3, 15, 5, 9, 10, 6, 7, 8, 16, 17, 18}
 local EnchantDefs = {
     {"无附魔",       0},
     {"炎黄",         324},
+    {"辉煌暴君",     257},
     {"寒气",         1},
     {"蓝光高",       24},
     {"烈火武器",     25},
@@ -457,42 +411,56 @@ IMT.OffHandEnchants, IMT.OffHandEnchantOrder = BuildEnchantData(17, "副-")
 -- ============================================
 -- 技能效果
 -- ============================================
-local SpellDefs = {
-    {"------近战AOE类------", 0},
-    {"------BUFF特效类------", 0},
-    {"------弹道技能类------", 0},
-    {"------远程AOE类------", 0},
-    {"神圣风暴", 53385},
-    {"混乱之箭", 59172},
-    {"旋风斩", 50622},
-    {"熔岩爆裂", 60043},
-    {"炎爆", 42891},
-    {"火焰漩涡", 59183},
-    {"雷霆一击", 47502},
-    {"小红人", 19574},
-    {"狂暴（手红光）", 20572},
-    {"光明使者（金光闪耀）", 73326},
-    {"暗影形态", 15473},
-    {"橙斧鬼影", 72523},
-    {"鬼眼标记", 64465},
-    {"大型虫群冲击", 34240},
-    {"小型虫群冲击", 37779},
-    {"凋零缠绕", 49895},
-    {"复仇之怒", 31884},
-    {"旋风", 21992},
-    {"猴子球气泡", 48332},
-    {"守护之魂翅膀", 47788},
-    {"急奔", 33357},
-    {"疾跑", 11305},
-    {"回血歌（音符环绕）", 64843},
-    {"回蓝歌", 64901},
-    {"落雷", 48467},
-    {"火雨", 47820},
-    {"暴风雪", 42940},
-    {"箭雪", 58434},
-    {"多重暗影箭", 49617},
+local SpellGroups = {
+    {"近战AOE", {
+        {"神圣风暴", 53385},
+        {"旋风斩", 50622},
+        {"雷霆一击", 47502},
+        {"旋风", 21992},
+    }},
+    {"BUFF特效", {
+        {"小红人", 19574},
+        {"狂暴（手红光）", 20572},
+        {"光明使者（金光闪耀）", 73326},
+        {"暗影形态", 15473},
+        {"复仇之怒", 31884},
+        {"守护之魂翅膀", 47788},
+    }},
+    {"弹道技能", {
+        {"混乱之箭", 59172},
+        {"熔岩爆裂", 60043},
+        {"炎爆", 42891},
+        {"凋零缠绕", 49895},
+        {"落雷", 48467},
+        {"多重暗影箭", 49617},
+    }},
+    {"远程AOE", {
+        {"火焰漩涡", 59183},
+        {"火雨", 47820},
+        {"暴风雪", 42940},
+        {"箭雪", 58434},
+    }},
+    {"其他特效", {
+        {"橙斧鬼影", 72523},
+        {"鬼眼标记", 64465},
+        {"大型虫群冲击", 34240},
+        {"小型虫群冲击", 37779},
+        {"猴子球气泡", 48332},
+        {"急奔", 33357},
+        {"疾跑", 11305},
+        {"回血歌（音符环绕）", 64843},
+        {"回蓝歌", 64901},
+    }},
 }
-IMT.SpellNames, IMT.SpellOrder = BuildIDTable(SpellDefs)
+IMT.SpellNames = {}
+IMT.SpellOrder = {}
+for _, group in ipairs(SpellGroups) do
+    for _, spell in ipairs(group[2]) do
+        IMT.SpellNames[spell[1]] = spell[2]
+        table.insert(IMT.SpellOrder, spell[1])
+    end
+end
+IMT.SpellGroups = SpellGroups
 
 -- ============================================
 -- 特征映射
