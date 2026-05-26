@@ -45,9 +45,6 @@ local CmdDefs = {
         SetItem(1, 51167); SetItem(3, 51166); SetItem(5, 51165);
         SetItem(10, 51169); SetItem(7, 51168); SetItem(6, 50010);
     end},
-    {"主手影之哀伤", function() SetItem(16, 51303) end},
-    {"副手影之哀伤", function() SetItem(17, 51303) end},
-    {"双影之哀伤", function() SetItem(16, 51303); SetItem(17, 51303) end},
     {"主手龙之召唤", function() SetItem(16, 10847) end},
     {"瑞文戴尔之剑", function() SetItem(16, 13505) end},
     {"红天启", function() SetItem(16, 128403, 31) end},
