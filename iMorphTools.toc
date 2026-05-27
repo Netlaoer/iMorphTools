@@ -9,4 +9,3 @@
 
 data.lua
 ui.lua
-diy.lua
