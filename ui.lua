@@ -1,4 +1,4 @@
-﻿-- iMorphTools UI - Modern Dark Theme
+-- iMorphTools UI - Modern Dark Theme
 -- 主界面逻辑，使用 IMT 命名空间中的数据
 
 -- ============================================
@@ -34,6 +34,19 @@ local T = {
 -- ============================================
 -- 辅助函数
 -- ============================================
+
+-- 全局弹出框管理器，确保同时只能打开一个
+local allPopups = {}
+local function RegisterPopup(frame)
+    allPopups[frame] = true
+end
+local function CloseAllPopups(except)
+    for f in pairs(allPopups) do
+        if f ~= except and f:IsShown() then
+            f:Hide()
+        end
+    end
+end
 
 -- 全局下拉菜单状态追踪器，解决多处 HookScript("OnHide") 互相干扰的问题
 local activeMenuID = nil
@@ -92,19 +105,32 @@ local function CreateCloseButton(parent, onClick)
     return btn
 end
 
--- 安全调用：确保 ID 为数字才执行
-local function SafeCall(func, id)
-    if type(id) == "number" then
-        func(id)
+-- 安全调用：确保参数为数字才执行
+local function SafeCall(func, ...)
+    local args = {...}
+    for i = 1, #args do
+        if type(args[i]) ~= "number" then return end
     end
+    func(...)
 end
 
 -- 安静调用：抑制函数执行时的 info 输出（如 Customizations）
 local function SilentCall(func, ...)
-    local origPrint = print
-    print = function() end
+    -- hook 所有聊天帧的 AddMessage
+    local hooked = {}
+    for i = 1, NUM_CHAT_WINDOWS do
+        local frame = _G["ChatFrame" .. i]
+        if frame and frame.AddMessage then
+            hooked[i] = frame.AddMessage
+            frame.AddMessage = function() end
+        end
+    end
     local ok, err = pcall(func, ...)
-    print = origPrint
+    -- 恢复所有聊天帧
+    for i, orig in pairs(hooked) do
+        local frame = _G["ChatFrame" .. i]
+        if frame then frame.AddMessage = orig end
+    end
     if not ok then DEFAULT_CHAT_FRAME:AddMessage("|cffff0000" .. tostring(err) .. "|r") end
 end
 
@@ -335,6 +361,7 @@ local function CreateSelectRow(parent, prevWidget, config)
             if id then
                 info.text = name
                 info.value = id
+                info.notCheckable = true
                 info.func = OnMenuSelect
                 UIDropDownMenu_AddButton(info)
             end
@@ -404,6 +431,7 @@ local function BuildCmdSection(mainFrame, preWidget)
         for _, cmdName in ipairs(IMT.CmdOrder) do
             if IMT.CmdSets[cmdName] then
                 info.text = cmdName
+                info.notCheckable = true
                 info.func = function() IMT.CmdSets[cmdName]() end
                 UIDropDownMenu_AddButton(info)
             end
@@ -477,6 +505,7 @@ local function BuildMountSection(mainFrame, preWidget)
 
     -- 坐骑选择弹出框
     local mountFrame = CreateFrame("Frame", "IMTMountFrame", UIParent, "BackdropTemplate")
+    RegisterPopup(mountFrame)
     mountFrame:SetSize(320, 460)
     mountFrame:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
@@ -657,11 +686,25 @@ local function BuildMountSection(mainFrame, preWidget)
 
     -- 标签按钮
     local mountTabBtns = {}
+    local function SetMountTabActive(activeTab)
+        for _, t in ipairs(mountTabBtns) do
+            if t == activeTab then
+                t.isActive = true
+                t:SetBackdropColor(unpack(T.tabActiveBg))
+                t:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+                t:GetFontString():SetTextColor(unpack(T.textAccent))
+            else
+                t.isActive = false
+                t:SetBackdropColor(unpack(T.btnBg))
+                t:SetBackdropBorderColor(unpack(T.btnBorder))
+                t:GetFontString():SetTextColor(1, 0.85, 0, 1)
+            end
+        end
+    end
     for gi, group in ipairs(IMT.MountGroups) do
         local tab = CreateModernButton(nil, mountFrame, 55, 20, group[1])
         tab:SetNormalFontObject("GameFontNormalSmall")
         tab:SetHighlightFontObject("GameFontHighlightSmall")
-        tab:SetDisabledFontObject("GameFontDisableSmall")
         local prevTab = mountTabBtns[#mountTabBtns]
         if prevTab then
             tab:SetPoint("TOPLEFT", prevTab, "TOPRIGHT", 2, 0)
@@ -671,16 +714,32 @@ local function BuildMountSection(mainFrame, preWidget)
         tab:SetScript("OnClick", function()
             mountSelectedGroup = group[1]
             mountScrollOffset = 0
-            for _, t in ipairs(mountTabBtns) do
-                t:SetEnabled(true)
-            end
-            tab:SetEnabled(false)
+            SetMountTabActive(tab)
             IMTMountScrollFrame_Update()
             C_Timer.After(0, IMTMountScrollFrame_Update)
         end)
         if group[1] == mountSelectedGroup then
-            tab:SetEnabled(false)
+            tab.isActive = true
+            tab:SetBackdropColor(unpack(T.tabActiveBg))
+            tab:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+            tab:GetFontString():SetTextColor(unpack(T.textAccent))
         end
+        -- 覆盖 OnEnter/OnLeave 避免覆盖选中样式
+        tab:SetScript("OnEnter", function(self)
+            if not self.isActive then
+                self:SetBackdropColor(unpack(T.btnHover))
+                self:SetBackdropBorderColor(unpack(T.accent))
+            end
+        end)
+        tab:SetScript("OnLeave", function(self)
+            if self.isActive then
+                self:SetBackdropColor(unpack(T.tabActiveBg))
+                self:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+            else
+                self:SetBackdropColor(unpack(T.btnBg))
+                self:SetBackdropBorderColor(unpack(T.btnBorder))
+            end
+        end)
         mountTabBtns[#mountTabBtns + 1] = tab
     end
 
@@ -692,6 +751,7 @@ local function BuildMountSection(mainFrame, preWidget)
             mountFrame:SetPoint("TOPLEFT", self, "BOTTOMLEFT", 0, -5)
             mountScrollOffset = 0
             IMTMountScrollFrame_Update()
+            CloseAllPopups(mountFrame)
             mountFrame:Show()
         end
     end)
@@ -732,6 +792,7 @@ local function BuildRaceSection(mainFrame, preWidget)
             if raceID then
                 info.text = raceName
                 info.value = raceName
+                info.notCheckable = true
                 info.func = function(button)
                     SafeCall(function(id) SetRace(id); SilentCall(Customizations) end, IMT.RaceOptions[button.value])
                 end
@@ -911,84 +972,342 @@ local function BuildItemSection(mainFrame, preWidget)
 end
 
 local function BuildEnchantSection(mainFrame, preWidget)
-    local savedMainHandSelection = iMorphToolsDBC.mainHandbjfmSelection or ""
-    local selectedMainHandFunc = IMT.MainHandEnchants[savedMainHandSelection]
-    local selectedMainHandName = savedMainHandSelection
+    local selectEnchantBtn = CreateModernButton("SelectEnchantBtn", mainFrame, 100, 28, "武器附魔")
+    selectEnchantBtn:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 20, -3)
+    SetupTooltip(selectEnchantBtn, "点击打开附魔选择列表")
 
-    local savedOffHandSelection = iMorphToolsDBC.offHandbjfmSelection or ""
-    local selectedOffHandFunc = IMT.OffHandEnchants[savedOffHandSelection]
-    local selectedOffHandName = savedOffHandSelection
+    -- 附魔选择弹出框
+    local enchantFrame = CreateFrame("Frame", "IMTEnchantFrame", UIParent, "BackdropTemplate")
+    RegisterPopup(enchantFrame)
+    enchantFrame:SetSize(320, 460)
+    enchantFrame:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    enchantFrame:SetBackdropColor(unpack(T.bg))
+    enchantFrame:SetBackdropBorderColor(unpack(T.border))
+    enchantFrame:EnableMouse(true)
+    enchantFrame:SetMovable(true)
+    enchantFrame:RegisterForDrag("LeftButton")
+    enchantFrame:SetScript("OnDragStart", enchantFrame.StartMoving)
+    enchantFrame:SetScript("OnDragStop", enchantFrame.StopMovingOrSizing)
+    enchantFrame:SetFrameStrata("DIALOG")
+    enchantFrame:Hide()
 
-    local function CreateEnchantDropdown(name, parent, point, enchantData, enchantOrder, savedName, onSelect)
-        local dropdown = CreateFrame("Frame", name, parent, "UIDropDownMenuTemplate")
-        dropdown:SetPoint(unpack(point))
-        UIDropDownMenu_SetWidth(dropdown, 112.5)
-        UIDropDownMenu_SetText(dropdown, savedName or "请选择")
-        StyleDropdown(dropdown)
+    CreateTitleBar(enchantFrame, "|cff3399FF武器附魔|r", function() enchantFrame:Hide() end)
 
-        UIDropDownMenu_Initialize(dropdown, function(self, level)
-            if level ~= 1 then return end
-            local info = UIDropDownMenu_CreateInfo()
-            for _, enchantName in ipairs(enchantOrder) do
-                local func = enchantData[enchantName]
-                if func then
-                    info.text = enchantName
-                    info.value = enchantName
-                    info.checked = (enchantName == savedName)
-                    info.func = function()
-                        onSelect(enchantName, func)
-                        UIDropDownMenu_SetText(dropdown, enchantName)
-                    end
-                    UIDropDownMenu_AddButton(info)
-                end
-            end
-        end)
+    local ENCHANT_BTN_H = 22
+    local ENCHANT_BTN_W = 275
+    local ENCHANT_TAB_TOP = -30
+    local SLOT_BAR_TOP = -56
+    local ENCHANT_LIST_TOP = -78
+    local ENCHANT_LIST_BOTTOM = 12
+    local ENCHANT_VISIBLE = math.floor((460 + ENCHANT_LIST_TOP - ENCHANT_LIST_BOTTOM) / ENCHANT_BTN_H)
 
-        dropdown:SetScript("OnMouseDown", function(self)
-            UIDropDownMenu_Refresh(self)
-        end)
+    local enchantScrollOffset = 0
+    local currentSlot = 16 -- 16=主手, 17=副手
+    local enchantSelectedGroup = IMT.EnchantGroups[1] and IMT.EnchantGroups[1][1] or ""
 
-        return dropdown
+    local IMTEnchantScrollFrame_Update
+
+    -- 滚动条
+    local enchantSlider = CreateFrame("Slider", "IMTEnchantSlider", enchantFrame, "BackdropTemplate")
+    enchantSlider:SetPoint("TOPRIGHT", -14, ENCHANT_LIST_TOP + 10)
+    enchantSlider:SetPoint("BOTTOMRIGHT", -14, ENCHANT_LIST_BOTTOM + 10)
+    enchantSlider:SetWidth(12)
+    enchantSlider:SetOrientation("VERTICAL")
+    enchantSlider:SetMinMaxValues(0, 0)
+    enchantSlider:SetValueStep(1)
+    enchantSlider:SetObeyStepOnDrag(true)
+    enchantSlider:SetValue(0)
+    enchantSlider:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    enchantSlider:SetBackdropColor(0.06, 0.06, 0.08, 0.6)
+    enchantSlider:SetBackdropBorderColor(0.20, 0.20, 0.24, 0.6)
+    enchantSlider:SetThumbTexture("Interface\\Buttons\\WHITE8x8")
+    local thumb = enchantSlider:GetThumbTexture()
+    thumb:SetSize(10, 30)
+    thumb:SetColorTexture(unpack(T.accent))
+
+    -- 上/下滚动按钮
+    local function CreateEnchantScrollButton(pointParent, pointFrom, pointTo, offsetY, arrowChar, onScroll)
+        local btn = CreateFrame("Button", nil, enchantFrame, "BackdropTemplate")
+        btn:SetSize(12, 12)
+        btn:SetPoint(pointFrom, pointParent, pointTo, 0, offsetY)
+        btn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btn:SetBackdropColor(unpack(T.accent))
+        btn:SetBackdropBorderColor(unpack(T.border))
+        btn:SetNormalFontObject("GameFontNormalSmall")
+        btn:SetHighlightFontObject("GameFontHighlightSmall")
+        btn:SetText(arrowChar)
+        btn:SetScript("OnClick", onScroll)
+        return btn
     end
 
-    local mainHandDropdown = CreateEnchantDropdown(
-        "WPDemoMainHandbjfmDropDown", mainFrame,
-        {"TOPLEFT", preWidget, "BOTTOMLEFT", 0, 0},
-        IMT.MainHandEnchants, IMT.MainHandEnchantOrder, savedMainHandSelection,
-        function(name, func)
-            selectedMainHandName = name
-            selectedMainHandFunc = func
-            iMorphToolsDBC.mainHandbjfmSelection = name
+    CreateEnchantScrollButton(enchantSlider, "BOTTOM", "TOP", 2, "▲", function()
+        local newVal = math.max(0, enchantScrollOffset - 3)
+        if newVal ~= enchantScrollOffset then
+            enchantScrollOffset = newVal
+            IMTEnchantScrollFrame_Update()
         end
-    )
-
-    local offHandDropdown = CreateEnchantDropdown(
-        "WPDemoOffHandbjfmDropDown", mainFrame,
-        {"LEFT", mainHandDropdown, "RIGHT", -30, 0},
-        IMT.OffHandEnchants, IMT.OffHandEnchantOrder, savedOffHandSelection,
-        function(name, func)
-            selectedOffHandName = name
-            selectedOffHandFunc = func
-            iMorphToolsDBC.offHandbjfmSelection = name
-        end
-    )
-
-    local bjfmButton = CreateModernButton("bjfmButton", mainFrame, 75, 28, "武器附魔")
-    bjfmButton:SetPoint("LEFT", offHandDropdown, "RIGHT", -16, 2)
-    SetupTooltip(bjfmButton, "选择主副手附魔效果，点击修改")
-
-    bjfmButton:SetScript("OnClick", function()
-        if selectedMainHandFunc then selectedMainHandFunc() end
-        if selectedOffHandFunc then selectedOffHandFunc() end
     end)
 
-    if selectedMainHandName and selectedMainHandName ~= "" then
-        UIDropDownMenu_SetText(mainHandDropdown, selectedMainHandName)
+    CreateEnchantScrollButton(enchantSlider, "TOP", "BOTTOM", -2, "▼", function()
+        local _, maxVal = enchantSlider:GetMinMaxValues()
+        local newVal = math.min(maxVal, enchantScrollOffset + 3)
+        if newVal ~= enchantScrollOffset then
+            enchantScrollOffset = newVal
+            IMTEnchantScrollFrame_Update()
+        end
+    end)
+
+    -- 按钮池
+    enchantSlider.buttonPool = {}
+    for i = 1, ENCHANT_VISIBLE do
+        local btn = CreateFrame("Button", nil, enchantFrame, "BackdropTemplate")
+        btn:SetSize(ENCHANT_BTN_W, ENCHANT_BTN_H)
+        btn:SetPoint("TOPLEFT", 12, ENCHANT_LIST_TOP - (i - 1) * ENCHANT_BTN_H)
+        btn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btn:SetBackdropColor(unpack(T.listBg))
+        btn:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
+        btn:SetFontString(btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight"))
+        btn:GetFontString():SetAllPoints(btn)
+        btn:GetFontString():SetJustifyH("LEFT")
+        btn:GetFontString():SetPoint("LEFT", 8, 0)
+
+        btn:SetScript("OnEnter", function(self)
+            self:SetBackdropColor(unpack(T.listHover))
+            self:SetBackdropBorderColor(unpack(T.accent))
+        end)
+        btn:SetScript("OnLeave", function(self)
+            self:SetBackdropColor(unpack(T.listBg))
+            self:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
+        end)
+        btn:SetScript("OnMouseWheel", function(self, delta)
+            enchantFrame:GetScript("OnMouseWheel")(enchantFrame, delta)
+        end)
+        btn:SetScript("OnClick", function(self)
+            if self.enchantID then
+                SafeCall(SetEnchant, currentSlot, self.enchantID)
+            end
+        end)
+        enchantSlider.buttonPool[i] = btn
     end
-    if selectedOffHandName and selectedOffHandName ~= "" then
-        UIDropDownMenu_SetText(offHandDropdown, selectedOffHandName)
+
+    -- 核心刷新函数
+    IMTEnchantScrollFrame_Update = function()
+        local groupData
+        for _, g in ipairs(IMT.EnchantGroups) do
+            if g[1] == enchantSelectedGroup then groupData = g[2]; break end
+        end
+        local count = groupData and #groupData or 0
+        local maxScroll = math.max(0, count - ENCHANT_VISIBLE)
+        enchantSlider:SetMinMaxValues(0, maxScroll)
+        if enchantScrollOffset > maxScroll then
+            enchantScrollOffset = maxScroll
+        end
+        enchantSlider:SetValue(enchantScrollOffset)
+        for i = 1, ENCHANT_VISIBLE do
+            local btn = enchantSlider.buttonPool[i]
+            local idx = enchantScrollOffset + i
+            if idx <= count then
+                local def = groupData[idx]
+                btn:SetText(def[1])
+                btn.enchantID = def[2]
+                btn:SetBackdropColor(unpack(T.listBg))
+                btn:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
+                btn:Show()
+            else
+                btn:Hide()
+            end
+        end
     end
-    return mainHandDropdown
+
+    enchantSlider:SetScript("OnValueChanged", function(self, value)
+        enchantScrollOffset = math.floor(value + 0.5)
+        IMTEnchantScrollFrame_Update()
+    end)
+
+    enchantFrame:SetScript("OnMouseWheel", function(self, delta)
+        local _, maxVal = enchantSlider:GetMinMaxValues()
+        local newVal = math.max(0, math.min(maxVal, enchantScrollOffset - delta))
+        if newVal ~= enchantScrollOffset then
+            enchantScrollOffset = newVal
+            IMTEnchantScrollFrame_Update()
+        end
+    end)
+
+    -- 版本标签按钮
+    local enchantTabBtns = {}
+    local function SetEnchantTabActive(activeTab)
+        for _, t in ipairs(enchantTabBtns) do
+            if t == activeTab then
+                t.isActive = true
+                t:SetBackdropColor(unpack(T.tabActiveBg))
+                t:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+                t:GetFontString():SetTextColor(unpack(T.textAccent))
+            else
+                t.isActive = false
+                t:SetBackdropColor(unpack(T.btnBg))
+                t:SetBackdropBorderColor(unpack(T.btnBorder))
+                t:GetFontString():SetTextColor(1, 0.85, 0, 1)
+            end
+        end
+    end
+    for gi, group in ipairs(IMT.EnchantGroups) do
+        local tab = CreateModernButton(nil, enchantFrame, 55, 20, group[1])
+        tab:SetNormalFontObject("GameFontNormalSmall")
+        tab:SetHighlightFontObject("GameFontHighlightSmall")
+        local prevTab = enchantTabBtns[#enchantTabBtns]
+        if prevTab then
+            tab:SetPoint("TOPLEFT", prevTab, "TOPRIGHT", 2, 0)
+        else
+            tab:SetPoint("TOPLEFT", 10, ENCHANT_TAB_TOP)
+        end
+        tab:SetScript("OnClick", function()
+            enchantSelectedGroup = group[1]
+            enchantScrollOffset = 0
+            SetEnchantTabActive(tab)
+            IMTEnchantScrollFrame_Update()
+            C_Timer.After(0, IMTEnchantScrollFrame_Update)
+        end)
+        if group[1] == enchantSelectedGroup then
+            tab.isActive = true
+            tab:SetBackdropColor(unpack(T.tabActiveBg))
+            tab:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+            tab:GetFontString():SetTextColor(unpack(T.textAccent))
+        end
+        tab:SetScript("OnEnter", function(self)
+            if not self.isActive then
+                self:SetBackdropColor(unpack(T.btnHover))
+                self:SetBackdropBorderColor(unpack(T.accent))
+            end
+        end)
+        tab:SetScript("OnLeave", function(self)
+            if self.isActive then
+                self:SetBackdropColor(unpack(T.tabActiveBg))
+                self:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+            else
+                self:SetBackdropColor(unpack(T.btnBg))
+                self:SetBackdropBorderColor(unpack(T.btnBorder))
+            end
+        end)
+        enchantTabBtns[#enchantTabBtns + 1] = tab
+    end
+
+    -- 主手/副手 切换按钮（版本标签下方）
+    local slotBtns = {}
+    local slotInfo = {{"主手", 16}, {"副手", 17}}
+    local function SetSlotBtnActive(activeBtn)
+        for _, t in ipairs(slotBtns) do
+            if t == activeBtn then
+                t.isActive = true
+                t:SetBackdropColor(unpack(T.tabActiveBg))
+                t:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+                t:GetFontString():SetTextColor(unpack(T.textAccent))
+            else
+                t.isActive = false
+                t:SetBackdropColor(unpack(T.btnBg))
+                t:SetBackdropBorderColor(unpack(T.btnBorder))
+                t:GetFontString():SetTextColor(1, 0.85, 0, 1)
+            end
+        end
+    end
+    for _, info in ipairs(slotInfo) do
+        local label, slot = info[1], info[2]
+        local btn = CreateModernButton(nil, enchantFrame, 45, 18, label)
+        btn:SetNormalFontObject("GameFontNormalSmall")
+        btn:SetHighlightFontObject("GameFontHighlightSmall")
+        local prevBtn = slotBtns[#slotBtns]
+        if prevBtn then
+            btn:SetPoint("TOPLEFT", prevBtn, "TOPRIGHT", 2, 0)
+        else
+            btn:SetPoint("TOPLEFT", 10, SLOT_BAR_TOP)
+        end
+        btn:SetScript("OnClick", function()
+            currentSlot = slot
+            SetSlotBtnActive(btn)
+        end)
+        if slot == currentSlot then
+            btn.isActive = true
+            btn:SetBackdropColor(unpack(T.tabActiveBg))
+            btn:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+            btn:GetFontString():SetTextColor(unpack(T.textAccent))
+        end
+        btn:SetScript("OnEnter", function(self)
+            if not self.isActive then
+                self:SetBackdropColor(unpack(T.btnHover))
+                self:SetBackdropBorderColor(unpack(T.accent))
+            end
+        end)
+        btn:SetScript("OnLeave", function(self)
+            if self.isActive then
+                self:SetBackdropColor(unpack(T.tabActiveBg))
+                self:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+            else
+                self:SetBackdropColor(unpack(T.btnBg))
+                self:SetBackdropBorderColor(unpack(T.btnBorder))
+            end
+        end)
+        slotBtns[#slotBtns + 1] = btn
+    end
+
+    selectEnchantBtn:SetScript("OnClick", function(self)
+        if enchantFrame:IsShown() then
+            enchantFrame:Hide()
+        else
+            enchantFrame:ClearAllPoints()
+            enchantFrame:SetPoint("TOPLEFT", self, "BOTTOMLEFT", 0, -5)
+            enchantScrollOffset = 0
+            IMTEnchantScrollFrame_Update()
+            CloseAllPopups(enchantFrame)
+            enchantFrame:Show()
+        end
+    end)
+
+    -- 手动输入ID
+    local editBoxEnchant = CreateModernEditBox("editBoxEnchant", mainFrame, 85, 28)
+    editBoxEnchant:SetPoint("LEFT", selectEnchantBtn, "RIGHT", 4, 0)
+    editBoxEnchant:SetText(iMorphToolsDBC.enchantManualID or "0")
+    editBoxEnchant:SetScript("OnTextChanged", function(self)
+        iMorphToolsDBC.enchantManualID = self:GetText()
+    end)
+
+    local manualEnchantBtn = CreateModernButton("manualEnchantMH", mainFrame, 60, 28, "主手")
+    manualEnchantBtn:SetPoint("LEFT", editBoxEnchant, "RIGHT", 4, 0)
+    SetupTooltip(manualEnchantBtn, "输入附魔ID后点击修改主手")
+
+    manualEnchantBtn:SetScript("OnClick", function()
+        local inputID = tonumber(editBoxEnchant:GetText())
+        if inputID then
+            SafeCall(SetEnchant, 16, inputID)
+        end
+    end)
+
+    local manualEnchantBtnOH = CreateModernButton("manualEnchantOH", mainFrame, 60, 28, "副手")
+    manualEnchantBtnOH:SetPoint("LEFT", manualEnchantBtn, "RIGHT", 2, 0)
+    SetupTooltip(manualEnchantBtnOH, "输入附魔ID后点击修改副手")
+
+    manualEnchantBtnOH:SetScript("OnClick", function()
+        local inputID = tonumber(editBoxEnchant:GetText())
+        if inputID then
+            SafeCall(SetEnchant, 17, inputID)
+        end
+    end)
+
+    return selectEnchantBtn
 end
 
 local function BuildSpellSection(mainFrame, preWidget)
@@ -997,17 +1316,149 @@ local function BuildSpellSection(mainFrame, preWidget)
     local savedDynamicSpellName = iMorphToolsDBC.dynamicSpellName
     local savedDynamicSpellID = iMorphToolsDBC.dynamicSpellID
 
-    -- 动态法术下拉
-    local dynamicSpellDropdown = CreateFrame("Frame", "DynamicSpellDropdown", mainFrame, "UIDropDownMenuTemplate")
-    dynamicSpellDropdown:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 0, 0)
-    UIDropDownMenu_SetWidth(dynamicSpellDropdown, 82.5)
-    UIDropDownMenu_SetText(dynamicSpellDropdown, savedDynamicSpellName or "动态选择法术")
-    StyleDropdown(dynamicSpellDropdown)
+    -- ============================================
+    -- 动态法术按钮
+    -- ============================================
+    local dynamicSpellBtn = CreateModernButton("DynamicSpellBtn", mainFrame, 100, 28, savedDynamicSpellName or "动态选择法术")
+    dynamicSpellBtn:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 0, -5)
+    SetupTooltip(dynamicSpellBtn, "点击选择技能书中的法术")
 
-    local function InitializeDynamicSpellDropdown(self, level)
-        local info = UIDropDownMenu_CreateInfo()
-        local foundAny = false
+    -- 动态法术弹出框
+    local DYN_BTN_H = 22
+    local DYN_BTN_W = 180
+    local DYN_LIST_TOP = -36
+    local DYN_LIST_BOTTOM = 12
+    local DYN_MAX_VISIBLE = 12
+    local DYN_FRAME_H = 36 + DYN_MAX_VISIBLE * DYN_BTN_H + 12
 
+    local dynPopup = CreateFrame("Frame", "IMTDynSpellFrame", UIParent, "BackdropTemplate")
+    RegisterPopup(dynPopup)
+    dynPopup:SetSize(DYN_BTN_W + 30, DYN_FRAME_H)
+    dynPopup:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    dynPopup:SetBackdropColor(unpack(T.bg))
+    dynPopup:SetBackdropBorderColor(unpack(T.border))
+    dynPopup:EnableMouse(true)
+    dynPopup:SetMovable(true)
+    dynPopup:RegisterForDrag("LeftButton")
+    dynPopup:SetScript("OnDragStart", dynPopup.StartMoving)
+    dynPopup:SetScript("OnDragStop", dynPopup.StopMovingOrSizing)
+    dynPopup:SetFrameStrata("DIALOG")
+    dynPopup:Hide()
+    CreateTitleBar(dynPopup, "|cff3399FF动态选择法术|r", function() dynPopup:Hide() end)
+
+    local dynScrollOffset = 0
+    local dynSpellData = {}
+    local dynBtnPool = {}
+
+    -- 滚动条
+    local dynSlider = CreateFrame("Slider", "IMTDynSpellSlider", dynPopup, "BackdropTemplate")
+    dynSlider:SetPoint("TOPRIGHT", -8, DYN_LIST_TOP + 0)
+    dynSlider:SetPoint("BOTTOMRIGHT", -8, DYN_LIST_BOTTOM + 0)
+    dynSlider:SetWidth(12)
+    dynSlider:SetOrientation("VERTICAL")
+    dynSlider:SetMinMaxValues(0, 0)
+    dynSlider:SetValueStep(1)
+    dynSlider:SetObeyStepOnDrag(true)
+    dynSlider:SetValue(0)
+    dynSlider:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    dynSlider:SetBackdropColor(0.06, 0.06, 0.08, 0.6)
+    dynSlider:SetBackdropBorderColor(0.20, 0.20, 0.24, 0.6)
+    dynSlider:SetThumbTexture("Interface\\Buttons\\WHITE8x8")
+    local dynThumb = dynSlider:GetThumbTexture()
+    dynThumb:SetSize(10, 30)
+    dynThumb:SetColorTexture(unpack(T.accent))
+
+    local function DynUpdateList()
+        local count = #dynSpellData
+        local maxScroll = math.max(0, count - DYN_MAX_VISIBLE)
+        dynScrollOffset = math.min(dynScrollOffset, maxScroll)
+        dynSlider:SetMinMaxValues(0, maxScroll)
+        dynSlider:SetValue(dynScrollOffset)
+        for i = 1, DYN_MAX_VISIBLE do
+            local btn = dynBtnPool[i]
+            local idx = dynScrollOffset + i
+            if idx <= count then
+                btn:SetText(dynSpellData[idx][1])
+                btn.dataName = dynSpellData[idx][1]
+                btn.dataID = dynSpellData[idx][2]
+                btn:SetBackdropColor(unpack(T.listBg))
+                btn:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
+                btn:Show()
+            else
+                btn:Hide()
+            end
+        end
+    end
+
+    dynSlider:SetScript("OnValueChanged", function(self, value)
+        dynScrollOffset = math.floor(value + 0.5)
+        DynUpdateList()
+    end)
+
+    for i = 1, DYN_MAX_VISIBLE do
+        local btn = CreateFrame("Button", nil, dynPopup, "BackdropTemplate")
+        btn:SetSize(DYN_BTN_W, DYN_BTN_H)
+        btn:SetPoint("TOPLEFT", 12, DYN_LIST_TOP - (i - 1) * DYN_BTN_H)
+        btn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btn:SetBackdropColor(unpack(T.listBg))
+        btn:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
+        btn:SetFontString(btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight"))
+        btn:GetFontString():SetAllPoints(btn)
+        btn:GetFontString():SetJustifyH("LEFT")
+        btn:GetFontString():SetPoint("LEFT", 8, 0)
+        btn:SetScript("OnEnter", function(self)
+            self:SetBackdropColor(unpack(T.listHover))
+            self:SetBackdropBorderColor(unpack(T.accent))
+        end)
+        btn:SetScript("OnLeave", function(self)
+            self:SetBackdropColor(unpack(T.listBg))
+            self:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
+        end)
+        btn:SetScript("OnMouseWheel", function(self, delta)
+            local maxScroll = math.max(0, #dynSpellData - DYN_MAX_VISIBLE)
+            local newVal = math.max(0, math.min(maxScroll, dynScrollOffset - delta))
+            if newVal ~= dynScrollOffset then
+                dynScrollOffset = newVal
+                DynUpdateList()
+            end
+        end)
+        btn:SetScript("OnClick", function(self)
+            if self.dataID then
+                savedDynamicSpellName = self.dataName
+                savedDynamicSpellID = self.dataID
+                iMorphToolsDBC.dynamicSpellName = self.dataName
+                iMorphToolsDBC.dynamicSpellID = self.dataID
+                dynamicSpellBtn:SetText(self.dataName)
+                C_Timer.After(0, function() dynPopup:Hide() end)
+            end
+        end)
+        btn:Hide()
+        dynBtnPool[i] = btn
+    end
+
+    dynPopup:SetScript("OnMouseWheel", function(self, delta)
+        local maxScroll = math.max(0, #dynSpellData - DYN_MAX_VISIBLE)
+        local newVal = math.max(0, math.min(maxScroll, dynScrollOffset - delta))
+        if newVal ~= dynScrollOffset then
+            dynScrollOffset = newVal
+            DynUpdateList()
+        end
+    end)
+
+    local function RefreshDynamicSpells()
+        dynSpellData = {}
         if C_SpellBook and C_SpellBook.GetSpellBookSkillLineInfo then
             local numSkillLines = C_SpellBook.GetNumSpellBookSkillLines()
             for i = 1, numSkillLines do
@@ -1020,18 +1471,7 @@ local function BuildSpellSection(mainFrame, preWidget)
                         if spellInfo and spellInfo.itemType == Enum.SpellBookItemType.Spell and spellInfo.spellID then
                             local spellName = C_SpellBook.GetSpellBookItemName(j, Enum.SpellBookSpellBank.Player)
                             if spellName then
-                                info.text = spellName
-                                info.arg1 = spellInfo.spellID
-                                info.checked = (spellName == savedDynamicSpellName)
-                                info.func = function(_, arg1)
-                                    savedDynamicSpellName = spellName
-                                    savedDynamicSpellID = arg1
-                                    iMorphToolsDBC.dynamicSpellName = spellName
-                                    iMorphToolsDBC.dynamicSpellID = arg1
-                                    UIDropDownMenu_SetText(dynamicSpellDropdown, spellName)
-                                end
-                                UIDropDownMenu_AddButton(info)
-                                foundAny = true
+                                table.insert(dynSpellData, {spellName, spellInfo.spellID})
                             end
                         end
                     end
@@ -1047,75 +1487,290 @@ local function BuildSpellSection(mainFrame, preWidget)
                         if spellType == "SPELL" and spellID then
                             local spellName = GetSpellBookItemName(i, BOOKTYPE_SPELL)
                             if spellName then
-                                info.text = spellName
-                                info.arg1 = spellID
-                                info.checked = (spellName == savedDynamicSpellName)
-                                info.func = function(_, arg1)
-                                    savedDynamicSpellName = spellName
-                                    savedDynamicSpellID = arg1
-                                    iMorphToolsDBC.dynamicSpellName = spellName
-                                    iMorphToolsDBC.dynamicSpellID = arg1
-                                    UIDropDownMenu_SetText(dynamicSpellDropdown, spellName)
-                                end
-                                UIDropDownMenu_AddButton(info)
-                                foundAny = true
+                                table.insert(dynSpellData, {spellName, spellID})
                             end
                         end
                     end
                 end
             end
         end
-
-        if not foundAny then
-            info.text = "未找到可用法术"
-            info.disabled = true
-            UIDropDownMenu_AddButton(info)
-        end
     end
 
-    UIDropDownMenu_Initialize(dynamicSpellDropdown, InitializeDynamicSpellDropdown)
+    dynamicSpellBtn:SetScript("OnClick", function(self)
+        if dynPopup:IsShown() then
+            dynPopup:Hide()
+        else
+            RefreshDynamicSpells()
+            dynPopup:ClearAllPoints()
+            dynPopup:SetPoint("TOPLEFT", self, "BOTTOMLEFT", 0, -5)
+            dynScrollOffset = 0
+            DynUpdateList()
+            CloseAllPopups(dynPopup)
+            dynPopup:Show()
+        end
+    end)
 
+    -- ============================================
+    -- ID输入框 + 改技能按钮
+    -- ============================================
     local editBox1 = CreateModernEditBox("editBox1", mainFrame, 50, 28)
-    editBox1:SetPoint("LEFT", dynamicSpellDropdown, "RIGHT", -8, 0)
+    editBox1:SetPoint("LEFT", dynamicSpellBtn, "RIGHT", 4, 0)
     editBox1:SetText(savedEditBoxContent or "")
 
     local buttonSpellChange = CreateModernButton("buttonSpellChange", mainFrame, 80, 28, "》改技能》")
     buttonSpellChange:SetPoint("LEFT", editBox1, "RIGHT", 4, 0)
     SetupTooltip(buttonSpellChange, "技能显示效果修改：\n编辑框可填写触发类饰品，ID自己查询填入即可\n若编辑框填写了ID则忽略左侧选择框")
 
-    -- 技能效果下拉
-    local dropdownSpells = CreateFrame("Frame", "WPDemoDropdownSpells", mainFrame, "UIDropDownMenuTemplate")
-    dropdownSpells:SetPoint("LEFT", buttonSpellChange, "RIGHT", -15, 0)
-    UIDropDownMenu_SetWidth(dropdownSpells, 82.5)
-    UIDropDownMenu_SetText(dropdownSpells, savedSelectedSpellName)
-    StyleDropdown(dropdownSpells)
+    -- ============================================
+    -- 技能效果按钮（带标签分组）
+    -- ============================================
+    local spellEffectBtn = CreateModernButton("SpellEffectBtn", mainFrame, 90, 28, savedSelectedSpellName)
+    spellEffectBtn:SetPoint("LEFT", buttonSpellChange, "RIGHT", 4, 0)
+    SetupTooltip(spellEffectBtn, "点击选择技能效果")
 
-    UIDropDownMenu_Initialize(dropdownSpells, function(self, level)
-        local info = UIDropDownMenu_CreateInfo()
-        if level == 1 then
-            for gi, group in ipairs(IMT.SpellGroups) do
-                info.text = group[1]
-                info.value = gi
-                info.hasArrow = true
-                info.notCheckable = true
-                UIDropDownMenu_AddButton(info)
+    local spellFrame = CreateFrame("Frame", "IMTSpellFrame", UIParent, "BackdropTemplate")
+    RegisterPopup(spellFrame)
+    spellFrame:SetSize(320, 460)
+    spellFrame:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    spellFrame:SetBackdropColor(unpack(T.bg))
+    spellFrame:SetBackdropBorderColor(unpack(T.border))
+    spellFrame:EnableMouse(true)
+    spellFrame:SetMovable(true)
+    spellFrame:RegisterForDrag("LeftButton")
+    spellFrame:SetScript("OnDragStart", spellFrame.StartMoving)
+    spellFrame:SetScript("OnDragStop", spellFrame.StopMovingOrSizing)
+    spellFrame:SetFrameStrata("DIALOG")
+    spellFrame:Hide()
+    CreateTitleBar(spellFrame, "|cff3399FF技能效果|r", function() spellFrame:Hide() end)
+
+    local SPELL_BTN_H = 22
+    local SPELL_BTN_W = 275
+    local SPELL_TAB_TOP = -30
+    local SPELL_TAB2_TOP = -52
+    local SPELL_LIST_TOP = -74
+    local SPELL_LIST_BOTTOM = 12
+    local SPELL_VISIBLE = math.floor((460 + SPELL_LIST_TOP - SPELL_LIST_BOTTOM) / SPELL_BTN_H)
+
+    local spellScrollOffset = 0
+    local spellSelectedGroup = IMT.SpellGroups[1] and IMT.SpellGroups[1][1] or ""
+
+    local IMTSpellScrollFrame_Update
+
+    -- 滚动条
+    local spellSlider = CreateFrame("Slider", "IMTSpellSlider", spellFrame, "BackdropTemplate")
+    spellSlider:SetPoint("TOPRIGHT", -14, SPELL_LIST_TOP + 10)
+    spellSlider:SetPoint("BOTTOMRIGHT", -14, SPELL_LIST_BOTTOM + 10)
+    spellSlider:SetWidth(12)
+    spellSlider:SetOrientation("VERTICAL")
+    spellSlider:SetMinMaxValues(0, 0)
+    spellSlider:SetValueStep(1)
+    spellSlider:SetObeyStepOnDrag(true)
+    spellSlider:SetValue(0)
+    spellSlider:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    spellSlider:SetBackdropColor(0.06, 0.06, 0.08, 0.6)
+    spellSlider:SetBackdropBorderColor(0.20, 0.20, 0.24, 0.6)
+    spellSlider:SetThumbTexture("Interface\\Buttons\\WHITE8x8")
+    local spellThumb = spellSlider:GetThumbTexture()
+    spellThumb:SetSize(10, 30)
+    spellThumb:SetColorTexture(unpack(T.accent))
+
+    local function CreateSpellScrollBtn(pointParent, pointFrom, pointTo, offsetY, arrowChar, onScroll)
+        local btn = CreateFrame("Button", nil, spellFrame, "BackdropTemplate")
+        btn:SetSize(12, 12)
+        btn:SetPoint(pointFrom, pointParent, pointTo, 0, offsetY)
+        btn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btn:SetBackdropColor(unpack(T.accent))
+        btn:SetBackdropBorderColor(unpack(T.border))
+        btn:SetNormalFontObject("GameFontNormalSmall")
+        btn:SetHighlightFontObject("GameFontHighlightSmall")
+        btn:SetText(arrowChar)
+        btn:SetScript("OnClick", onScroll)
+        return btn
+    end
+
+    CreateSpellScrollBtn(spellSlider, "BOTTOM", "TOP", 2, "▲", function()
+        local newVal = math.max(0, spellScrollOffset - 3)
+        if newVal ~= spellScrollOffset then
+            spellScrollOffset = newVal
+            IMTSpellScrollFrame_Update()
+        end
+    end)
+    CreateSpellScrollBtn(spellSlider, "TOP", "BOTTOM", -2, "▼", function()
+        local _, maxVal = spellSlider:GetMinMaxValues()
+        local newVal = math.min(maxVal, spellScrollOffset + 3)
+        if newVal ~= spellScrollOffset then
+            spellScrollOffset = newVal
+            IMTSpellScrollFrame_Update()
+        end
+    end)
+
+    -- 按钮池
+    spellSlider.buttonPool = {}
+    for i = 1, SPELL_VISIBLE do
+        local btn = CreateFrame("Button", nil, spellFrame, "BackdropTemplate")
+        btn:SetSize(SPELL_BTN_W, SPELL_BTN_H)
+        btn:SetPoint("TOPLEFT", 12, SPELL_LIST_TOP - (i - 1) * SPELL_BTN_H)
+        btn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btn:SetBackdropColor(unpack(T.listBg))
+        btn:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
+        btn:SetFontString(btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight"))
+        btn:GetFontString():SetAllPoints(btn)
+        btn:GetFontString():SetJustifyH("LEFT")
+        btn:GetFontString():SetPoint("LEFT", 8, 0)
+        btn:SetScript("OnEnter", function(self)
+            self:SetBackdropColor(unpack(T.listHover))
+            self:SetBackdropBorderColor(unpack(T.accent))
+        end)
+        btn:SetScript("OnLeave", function(self)
+            self:SetBackdropColor(unpack(T.listBg))
+            self:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
+        end)
+        btn:SetScript("OnMouseWheel", function(self, delta)
+            spellFrame:GetScript("OnMouseWheel")(spellFrame, delta)
+        end)
+        btn:SetScript("OnClick", function(self)
+            if self.spellID then
+                savedSelectedSpellName = self.spellName
+                iMorphToolsDBC.selectedSpellName = self.spellName
+                spellEffectBtn:SetText(self.spellName)
+                spellFrame:Hide()
             end
-        elseif level == 2 then
-            local gi = UIDROPDOWNMENU_MENU_VALUE
-            local group = IMT.SpellGroups[gi]
-            if group then
-                for _, spell in ipairs(group[2]) do
-                    info.text = spell[1]
-                    info.value = spell[2]
-                    info.checked = (spell[1] == savedSelectedSpellName)
-                    info.func = function()
-                        savedSelectedSpellName = spell[1]
-                        iMorphToolsDBC.selectedSpellName = spell[1]
-                        UIDropDownMenu_SetText(dropdownSpells, spell[1])
-                    end
-                    UIDropDownMenu_AddButton(info, level)
-                end
+        end)
+        spellSlider.buttonPool[i] = btn
+    end
+
+    -- 核心刷新
+    IMTSpellScrollFrame_Update = function()
+        local groupData
+        for _, g in ipairs(IMT.SpellGroups) do
+            if g[1] == spellSelectedGroup then groupData = g[2]; break end
+        end
+        local cnt = groupData and #groupData or 0
+        local maxScroll = math.max(0, cnt - SPELL_VISIBLE)
+        spellSlider:SetMinMaxValues(0, maxScroll)
+        if spellScrollOffset > maxScroll then
+            spellScrollOffset = maxScroll
+        end
+        spellSlider:SetValue(spellScrollOffset)
+        for i = 1, SPELL_VISIBLE do
+            local btn = spellSlider.buttonPool[i]
+            local idx = spellScrollOffset + i
+            if idx <= cnt then
+                local def = groupData[idx]
+                btn:SetText(def[1])
+                btn.spellName = def[1]
+                btn.spellID = def[2]
+                btn:SetBackdropColor(unpack(T.listBg))
+                btn:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
+                btn:Show()
+            else
+                btn:Hide()
             end
+        end
+    end
+
+    spellSlider:SetScript("OnValueChanged", function(self, value)
+        spellScrollOffset = math.floor(value + 0.5)
+        IMTSpellScrollFrame_Update()
+    end)
+
+    spellFrame:SetScript("OnMouseWheel", function(self, delta)
+        local _, maxVal = spellSlider:GetMinMaxValues()
+        local newVal = math.max(0, math.min(maxVal, spellScrollOffset - delta))
+        if newVal ~= spellScrollOffset then
+            spellScrollOffset = newVal
+            IMTSpellScrollFrame_Update()
+        end
+    end)
+
+    -- 标签按钮
+    local spellTabBtns = {}
+    local function SetSpellTabActive(activeTab)
+        for _, t in ipairs(spellTabBtns) do
+            if t == activeTab then
+                t.isActive = true
+                t:SetBackdropColor(unpack(T.tabActiveBg))
+                t:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+                t:GetFontString():SetTextColor(unpack(T.textAccent))
+            else
+                t.isActive = false
+                t:SetBackdropColor(unpack(T.btnBg))
+                t:SetBackdropBorderColor(unpack(T.btnBorder))
+                t:GetFontString():SetTextColor(1, 0.85, 0, 1)
+            end
+        end
+    end
+    for gi, group in ipairs(IMT.SpellGroups) do
+        local tab = CreateModernButton(nil, spellFrame, 65, 20, group[1])
+        tab:SetNormalFontObject("GameFontNormalSmall")
+        tab:SetHighlightFontObject("GameFontHighlightSmall")
+        local prevTab = spellTabBtns[#spellTabBtns]
+        if gi == 1 then
+            tab:SetPoint("TOPLEFT", 10, SPELL_TAB_TOP)
+        elseif gi <= 3 then
+            tab:SetPoint("TOPLEFT", prevTab, "TOPRIGHT", 2, 0)
+        elseif gi == 4 then
+            tab:SetPoint("TOPLEFT", 10, SPELL_TAB2_TOP)
+        else
+            tab:SetPoint("TOPLEFT", prevTab, "TOPRIGHT", 2, 0)
+        end
+        tab:SetScript("OnClick", function()
+            spellSelectedGroup = group[1]
+            spellScrollOffset = 0
+            SetSpellTabActive(tab)
+            IMTSpellScrollFrame_Update()
+            C_Timer.After(0, IMTSpellScrollFrame_Update)
+        end)
+        if group[1] == spellSelectedGroup then
+            tab.isActive = true
+            tab:SetBackdropColor(unpack(T.tabActiveBg))
+            tab:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+            tab:GetFontString():SetTextColor(unpack(T.textAccent))
+        end
+        tab:SetScript("OnEnter", function(self)
+            if not self.isActive then
+                self:SetBackdropColor(unpack(T.btnHover))
+                self:SetBackdropBorderColor(unpack(T.accent))
+            end
+        end)
+        tab:SetScript("OnLeave", function(self)
+            if self.isActive then
+                self:SetBackdropColor(unpack(T.tabActiveBg))
+                self:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+            else
+                self:SetBackdropColor(unpack(T.btnBg))
+                self:SetBackdropBorderColor(unpack(T.btnBorder))
+            end
+        end)
+        spellTabBtns[#spellTabBtns + 1] = tab
+    end
+
+    spellEffectBtn:SetScript("OnClick", function(self)
+        if spellFrame:IsShown() then
+            spellFrame:Hide()
+        else
+            spellFrame:ClearAllPoints()
+            spellFrame:SetPoint("TOPLEFT", self, "BOTTOMLEFT", 0, -5)
+            spellScrollOffset = 0
+            IMTSpellScrollFrame_Update()
+            CloseAllPopups(spellFrame)
+            spellFrame:Show()
         end
     end)
 
@@ -1138,7 +1793,7 @@ local function BuildSpellSection(mainFrame, preWidget)
         end
     end)
 
-    return dynamicSpellDropdown
+    return dynamicSpellBtn
 end
 
 local function BuildPlayKitSection(mainFrame, preWidget)
@@ -1153,57 +1808,72 @@ local function BuildPlayKitSection(mainFrame, preWidget)
         end
     end
 
-    local dropdownPlayKit = CreateFrame("Frame", "PlayKitDropdown", mainFrame, "UIDropDownMenuTemplate")
-    dropdownPlayKit:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 0, -5)
-    UIDropDownMenu_SetWidth(dropdownPlayKit, 90)
-    UIDropDownMenu_SetText(dropdownPlayKit, selectedPlayKitName)
-    StyleDropdown(dropdownPlayKit)
+    -- 特效选择按钮
+    local pkBtn = CreateModernButton("PlayKitBtn", mainFrame, 100, 28, selectedPlayKitName)
+    pkBtn:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 0, -5)
+    SetupTooltip(pkBtn, "点击选择视觉套件")
 
-    UIDropDownMenu_Initialize(dropdownPlayKit, function(self, level)
-        local info = UIDropDownMenu_CreateInfo()
-        for _, pk in ipairs(IMT.PlayKitDefs) do
-            info.text = pk[1]
-            info.func = function()
-                selectedPlayKitID = pk[2]
-                selectedPlayKitName = pk[1]
-                iMorphToolsDBC.PlayKitID = pk[2]
-                UIDropDownMenu_SetText(dropdownPlayKit, pk[1])
-                CloseDropDownMenus()
+    -- 动态/静态切换
+    local optBtns = {}
+    local optInfo = {{"动态", "0"}, {"静态", "1"}}
+    local function SetOptBtnActive(activeBtn)
+        for _, t in ipairs(optBtns) do
+            if t == activeBtn then
+                t.isActive = true
+                t:SetBackdropColor(unpack(T.tabActiveBg))
+                t:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+                t:GetFontString():SetTextColor(unpack(T.textAccent))
+            else
+                t.isActive = false
+                t:SetBackdropColor(unpack(T.btnBg))
+                t:SetBackdropBorderColor(unpack(T.btnBorder))
+                t:GetFontString():SetTextColor(1, 0.85, 0, 1)
             end
-            UIDropDownMenu_AddButton(info)
         end
-    end)
-
-    local optLabels = {["0"] = "动态", ["1"] = "静态"}
-    local dropdownPlayKitOpt = CreateFrame("Frame", "PlayKitOptDropdown", mainFrame, "UIDropDownMenuTemplate")
-    dropdownPlayKitOpt:SetPoint("LEFT", dropdownPlayKit, "RIGHT", -10, 0)
-    UIDropDownMenu_SetWidth(dropdownPlayKitOpt, 60)
-    UIDropDownMenu_SetText(dropdownPlayKitOpt, optLabels[selectedPlayKitOpt] or "动态")
-    StyleDropdown(dropdownPlayKitOpt)
-
-    UIDropDownMenu_Initialize(dropdownPlayKitOpt, function(self, level)
-        local info = UIDropDownMenu_CreateInfo()
-        info.text = "动态"
-        info.func = function()
-            selectedPlayKitOpt = "0"
-            iMorphToolsDBC.PlayKitOpt = "0"
-            UIDropDownMenu_SetText(dropdownPlayKitOpt, "动态")
-            CloseDropDownMenus()
+    end
+    for _, info in ipairs(optInfo) do
+        local label, opt = info[1], info[2]
+        local btn = CreateModernButton(nil, mainFrame, 40, 28, label)
+        btn:SetNormalFontObject("GameFontNormalSmall")
+        btn:SetHighlightFontObject("GameFontHighlightSmall")
+        local prevBtn = optBtns[#optBtns]
+        if prevBtn then
+            btn:SetPoint("TOPLEFT", prevBtn, "TOPRIGHT", 2, 0)
+        else
+            btn:SetPoint("LEFT", pkBtn, "RIGHT", 4, 0)
         end
-        UIDropDownMenu_AddButton(info)
-        info = UIDropDownMenu_CreateInfo()
-        info.text = "静态"
-        info.func = function()
-            selectedPlayKitOpt = "1"
-            iMorphToolsDBC.PlayKitOpt = "1"
-            UIDropDownMenu_SetText(dropdownPlayKitOpt, "静态")
-            CloseDropDownMenus()
+        btn:SetScript("OnClick", function()
+            selectedPlayKitOpt = opt
+            iMorphToolsDBC.PlayKitOpt = opt
+            SetOptBtnActive(btn)
+        end)
+        if opt == selectedPlayKitOpt then
+            btn.isActive = true
+            btn:SetBackdropColor(unpack(T.tabActiveBg))
+            btn:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+            btn:GetFontString():SetTextColor(unpack(T.textAccent))
         end
-        UIDropDownMenu_AddButton(info)
-    end)
+        btn:SetScript("OnEnter", function(self)
+            if not self.isActive then
+                self:SetBackdropColor(unpack(T.btnHover))
+                self:SetBackdropBorderColor(unpack(T.accent))
+            end
+        end)
+        btn:SetScript("OnLeave", function(self)
+            if self.isActive then
+                self:SetBackdropColor(unpack(T.tabActiveBg))
+                self:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+            else
+                self:SetBackdropColor(unpack(T.btnBg))
+                self:SetBackdropBorderColor(unpack(T.btnBorder))
+            end
+        end)
+        optBtns[#optBtns + 1] = btn
+    end
 
-    local buttonPK = CreateModernButton("buttonPK", mainFrame, 50, 24, "应用")
-    buttonPK:SetPoint("LEFT", dropdownPlayKitOpt, "RIGHT", -5, 2)
+    -- 应用按钮
+    local buttonPK = CreateModernButton("buttonPK", mainFrame, 50, 28, "应用")
+    buttonPK:SetPoint("LEFT", optBtns[#optBtns], "RIGHT", 4, 0)
     SetupTooltip(buttonPK, "应用选中的视觉套件\n动态=0 套件动作执行一次\n静态=1 套件保持固定效果")
 
     buttonPK:SetScript("OnClick", function()
@@ -1212,7 +1882,82 @@ local function BuildPlayKitSection(mainFrame, preWidget)
         end
     end)
 
-    return dropdownPlayKit
+    -- 特效弹出框
+    local PK_BTN_H = 22
+    local PK_BTN_W = 150
+    local PK_LIST_TOP = -36
+    local PK_LIST_BOTTOM = 12
+    local PK_VISIBLE = math.min(16, #IMT.PlayKitDefs)
+
+    local pkPopup = CreateFrame("Frame", "IMTPKFrame", UIParent, "BackdropTemplate")
+    RegisterPopup(pkPopup)
+    pkPopup:SetSize(PK_BTN_W + 30, 36 + PK_VISIBLE * PK_BTN_H + 12)
+    pkPopup:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    pkPopup:SetBackdropColor(unpack(T.bg))
+    pkPopup:SetBackdropBorderColor(unpack(T.border))
+    pkPopup:EnableMouse(true)
+    pkPopup:SetMovable(true)
+    pkPopup:RegisterForDrag("LeftButton")
+    pkPopup:SetScript("OnDragStart", pkPopup.StartMoving)
+    pkPopup:SetScript("OnDragStop", pkPopup.StopMovingOrSizing)
+    pkPopup:SetFrameStrata("DIALOG")
+    pkPopup:Hide()
+    CreateTitleBar(pkPopup, "|cff3399FF视觉套件|r", function() pkPopup:Hide() end)
+
+    local pkBtnPool = {}
+    for i = 1, PK_VISIBLE do
+        local btn = CreateFrame("Button", nil, pkPopup, "BackdropTemplate")
+        btn:SetSize(PK_BTN_W, PK_BTN_H)
+        btn:SetPoint("TOPLEFT", 12, PK_LIST_TOP - (i - 1) * PK_BTN_H)
+        btn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btn:SetBackdropColor(unpack(T.listBg))
+        btn:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
+        btn:SetFontString(btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight"))
+        btn:GetFontString():SetAllPoints(btn)
+        btn:GetFontString():SetJustifyH("LEFT")
+        btn:GetFontString():SetPoint("LEFT", 8, 0)
+        btn:SetText(IMT.PlayKitDefs[i][1])
+        btn.pkID = IMT.PlayKitDefs[i][2]
+        btn:SetScript("OnEnter", function(self)
+            self:SetBackdropColor(unpack(T.listHover))
+            self:SetBackdropBorderColor(unpack(T.accent))
+        end)
+        btn:SetScript("OnLeave", function(self)
+            self:SetBackdropColor(unpack(T.listBg))
+            self:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
+        end)
+        btn:SetScript("OnClick", function(self)
+            if self.pkID then
+                selectedPlayKitID = self.pkID
+                selectedPlayKitName = self:GetText()
+                iMorphToolsDBC.PlayKitID = self.pkID
+                pkBtn:SetText(self:GetText())
+                C_Timer.After(0, function() pkPopup:Hide() end)
+            end
+        end)
+        pkBtnPool[i] = btn
+    end
+
+    pkBtn:SetScript("OnClick", function(self)
+        if pkPopup:IsShown() then
+            pkPopup:Hide()
+        else
+            pkPopup:ClearAllPoints()
+            pkPopup:SetPoint("TOPLEFT", self, "BOTTOMLEFT", 0, -5)
+            CloseAllPopups(pkPopup)
+            pkPopup:Show()
+        end
+    end)
+
+    return pkBtn
 end
 
 -- ============================================
