@@ -136,12 +136,12 @@ end
 
 -- 创建 Tooltip
 local function SetupTooltip(widget, text)
-    widget:SetScript("OnEnter", function(self)
+    widget:HookScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine(text, 1, 1, 1)
         GameTooltip:Show()
     end)
-    widget:SetScript("OnLeave", function(self)
+    widget:HookScript("OnLeave", function(self)
         GameTooltip:Hide()
     end)
 end
@@ -207,6 +207,11 @@ local function CreateModernEditBox(name, parent, width, height)
     editBox:SetFontObject("ChatFontNormal")
     editBox:SetTextInsets(6, 6, 0, 0)
 
+    editBox:SetScript("OnMouseDown", function(self)
+        if not self:HasFocus() then
+            self:SetFocus()
+        end
+    end)
     editBox:SetScript("OnEscapePressed", EditBox_ClearFocus)
     editBox:SetScript("OnEditFocusGained", function(self)
         EditBox_HighlightText(self)
@@ -448,21 +453,244 @@ end
 
 local function BuildSetSection(mainFrame, preWidget)
     local savedSetText = iMorphToolsDBC.EditBox2Text or ""
-    local editBox2 = CreateModernEditBox("editBox2", mainFrame, 165, 28)
-    editBox2:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 10, -3)
-    editBox2:SetText(savedSetText)
 
-    local buttonSetChange = CreateModernButton("buttonSetChange", mainFrame, 125, 28, "修改套装")
-    buttonSetChange:SetPoint("LEFT", editBox2, "RIGHT", 30, 0)
-    SetupTooltip(buttonSetChange, "编辑框直接输入DKT3、QST6，PVP系列仅采集了S1，T9系列分BL/LM（例\"QSLMT9\"）。也可自行查询编号手动输入")
+    -- 选择套装按钮
+    local setBtn = CreateModernButton("SetSelectBtn", mainFrame, 121, 28, "点击选择套装")
+    setBtn:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 0, -3)
+    SetupTooltip(setBtn, "点击选择职业套装")
+
+    local editBox2 = CreateModernEditBox("editBox2", mainFrame, 85, 28)
+    editBox2:SetPoint("LEFT", setBtn, "RIGHT", 6, 0)
+    editBox2:SetText(savedSetText)
+    editBox2:SetScript("OnTextChanged", function(self)
+        iMorphToolsDBC.EditBox2Text = self:GetText()
+    end)
+
+    local buttonSetChange = CreateModernButton("buttonSetChange", mainFrame, 121, 28, "手动套装改模")
+    buttonSetChange:SetPoint("LEFT", editBox2, "RIGHT", 4, 0)
+    SetupTooltip(buttonSetChange, "输入套装ID或快捷名后点击修改")
 
     buttonSetChange:SetScript("OnClick", function()
         local inputText = editBox2:GetText()
-        local setId = tonumber(inputText) or IMT.SetMapping[inputText:upper()]
+        local setId = tonumber(inputText)
         if setId then SetItemSet(setId) end
-        iMorphToolsDBC.EditBox2Text = inputText
     end)
-    return editBox2
+
+    -- 套装弹出框
+    local SET_BTN_H = 22
+    local SET_BTN_W = 275
+    local SET_TAB_TOP = -30
+    local SET_TAB2_TOP = -52
+    local SET_LIST_TOP = -74
+    local SET_LIST_BOTTOM = 12
+    local SET_FRAME_H = 580
+    local SET_VISIBLE = math.floor((SET_FRAME_H + SET_LIST_TOP - SET_LIST_BOTTOM) / SET_BTN_H)
+
+    local setFrame = CreateFrame("Frame", "IMTSetFrame", UIParent, "BackdropTemplate")
+    setFrame:SetSize(320, SET_FRAME_H)
+    setFrame:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    setFrame:SetBackdropColor(unpack(T.bg))
+    setFrame:SetBackdropBorderColor(unpack(T.border))
+    setFrame:EnableMouse(true)
+    setFrame:SetMovable(true)
+    setFrame:RegisterForDrag("LeftButton")
+    setFrame:SetScript("OnDragStart", setFrame.StartMoving)
+    setFrame:SetScript("OnDragStop", setFrame.StopMovingOrSizing)
+    setFrame:SetFrameStrata("DIALOG")
+    setFrame:Hide()
+    RegisterPopup(setFrame)
+    CreateTitleBar(setFrame, "|cff3399FF选择套装|r", function() setFrame:Hide() end)
+
+    local setScrollOffset = 0
+    local setSelectedGroup = IMT.SetGroups[1] and IMT.SetGroups[1][1] or ""
+
+    local IMTSetScrollFrame_Update
+
+    -- 滚动条
+    local setSlider = CreateFrame("Slider", "IMTSetSlider", setFrame, "BackdropTemplate")
+    setSlider:SetPoint("TOPRIGHT", -14, SET_LIST_TOP + 10)
+    setSlider:SetPoint("BOTTOMRIGHT", -14, SET_LIST_BOTTOM + 10)
+    setSlider:SetWidth(12)
+    setSlider:SetOrientation("VERTICAL")
+    setSlider:SetMinMaxValues(0, 0)
+    setSlider:SetValueStep(1)
+    setSlider:SetObeyStepOnDrag(true)
+    setSlider:SetValue(0)
+    setSlider:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    setSlider:SetBackdropColor(0.06, 0.06, 0.08, 0.6)
+    setSlider:SetBackdropBorderColor(0.20, 0.20, 0.24, 0.6)
+    setSlider:SetThumbTexture("Interface\\Buttons\\WHITE8x8")
+    local setThumb = setSlider:GetThumbTexture()
+    setThumb:SetSize(10, 30)
+    setThumb:SetColorTexture(unpack(T.accent))
+
+    -- 按钮池
+    setSlider.buttonPool = {}
+    for i = 1, SET_VISIBLE do
+        local btn = CreateFrame("Button", nil, setFrame, "BackdropTemplate")
+        btn:SetSize(SET_BTN_W, SET_BTN_H)
+        btn:SetPoint("TOPLEFT", 12, SET_LIST_TOP - (i - 1) * SET_BTN_H)
+        btn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btn:SetBackdropColor(unpack(T.listBg))
+        btn:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
+        btn:SetFontString(btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight"))
+        btn:GetFontString():SetAllPoints(btn)
+        btn:GetFontString():SetJustifyH("LEFT")
+        btn:GetFontString():SetPoint("LEFT", 8, 0)
+        btn:SetScript("OnEnter", function(self)
+            self:SetBackdropColor(unpack(T.listHover))
+            self:SetBackdropBorderColor(unpack(T.accent))
+        end)
+        btn:SetScript("OnLeave", function(self)
+            self:SetBackdropColor(unpack(T.listBg))
+            self:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
+        end)
+        btn:SetScript("OnMouseWheel", function(self, delta)
+            setFrame:GetScript("OnMouseWheel")(setFrame, delta)
+        end)
+        btn:SetScript("OnClick", function(self)
+            if self.setId then
+                SafeCall(SetItemSet, self.setId)
+                editBox2:SetText(tostring(self.setId))
+                iMorphToolsDBC.EditBox2Text = tostring(self.setId)
+                C_Timer.After(0, function() setFrame:Hide() end)
+            end
+        end)
+        setSlider.buttonPool[i] = btn
+    end
+
+    -- 核心刷新
+    IMTSetScrollFrame_Update = function()
+        local groupData
+        for _, g in ipairs(IMT.SetGroups) do
+            if g[1] == setSelectedGroup then groupData = g[2]; break end
+        end
+        local cnt = groupData and #groupData or 0
+        local maxScroll = math.max(0, cnt - SET_VISIBLE)
+        setScrollOffset = math.min(setScrollOffset, maxScroll)
+        setSlider:SetMinMaxValues(0, maxScroll)
+        setSlider:SetValue(setScrollOffset)
+        for i = 1, SET_VISIBLE do
+            local btn = setSlider.buttonPool[i]
+            local idx = setScrollOffset + i
+            if idx <= cnt then
+                local def = groupData[idx]
+                btn:SetText(def[1])
+                btn.setId = def[2]
+                btn:SetBackdropColor(unpack(T.listBg))
+                btn:SetBackdropBorderColor(0.10, 0.10, 0.12, 1)
+                btn:Show()
+            else
+                btn:Hide()
+            end
+        end
+    end
+
+    setSlider:SetScript("OnValueChanged", function(self, value)
+        setScrollOffset = math.floor(value + 0.5)
+        IMTSetScrollFrame_Update()
+    end)
+
+    setFrame:SetScript("OnMouseWheel", function(self, delta)
+        local _, maxVal = setSlider:GetMinMaxValues()
+        local newVal = math.max(0, math.min(maxVal, setScrollOffset - delta))
+        if newVal ~= setScrollOffset then
+            setScrollOffset = newVal
+            IMTSetScrollFrame_Update()
+        end
+    end)
+
+    -- 标签按钮（9职业分两行：5+4）
+    local setTabBtns = {}
+    local function SetTabActive(activeTab)
+        for _, t in ipairs(setTabBtns) do
+            if t == activeTab then
+                t.isActive = true
+                t:SetBackdropColor(unpack(T.tabActiveBg))
+                t:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+                t:GetFontString():SetTextColor(unpack(T.textAccent))
+            else
+                t.isActive = false
+                t:SetBackdropColor(unpack(T.btnBg))
+                t:SetBackdropBorderColor(unpack(T.btnBorder))
+                t:GetFontString():SetTextColor(1, 0.85, 0, 1)
+            end
+        end
+    end
+    for gi, group in ipairs(IMT.SetGroups) do
+        local tabWidth = (#group[1] > 2) and 55 or 45
+        local tab = CreateModernButton(nil, setFrame, tabWidth, 20, group[1])
+        tab:SetNormalFontObject("GameFontNormalSmall")
+        tab:SetHighlightFontObject("GameFontHighlightSmall")
+        local prevTab = setTabBtns[#setTabBtns]
+        if gi == 1 then
+            tab:SetPoint("TOPLEFT", 10, SET_TAB_TOP)
+        elseif gi <= 5 then
+            tab:SetPoint("TOPLEFT", prevTab, "TOPRIGHT", 2, 0)
+        elseif gi == 6 then
+            tab:SetPoint("TOPLEFT", 10, SET_TAB2_TOP)
+        elseif gi <= 10 then
+            tab:SetPoint("TOPLEFT", prevTab, "TOPRIGHT", 2, 0)
+        else
+            tab:SetPoint("TOPLEFT", prevTab, "TOPRIGHT", 2, 0)
+        end
+        tab:SetScript("OnClick", function()
+            setSelectedGroup = group[1]
+            setScrollOffset = 0
+            SetTabActive(tab)
+            IMTSetScrollFrame_Update()
+            C_Timer.After(0, IMTSetScrollFrame_Update)
+        end)
+        if group[1] == setSelectedGroup then
+            tab.isActive = true
+            tab:SetBackdropColor(unpack(T.tabActiveBg))
+            tab:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+            tab:GetFontString():SetTextColor(unpack(T.textAccent))
+        end
+        tab:SetScript("OnEnter", function(self)
+            if not self.isActive then
+                self:SetBackdropColor(unpack(T.btnHover))
+                self:SetBackdropBorderColor(unpack(T.accent))
+            end
+        end)
+        tab:SetScript("OnLeave", function(self)
+            if self.isActive then
+                self:SetBackdropColor(unpack(T.tabActiveBg))
+                self:SetBackdropBorderColor(unpack(T.tabActiveBdr))
+            else
+                self:SetBackdropColor(unpack(T.btnBg))
+                self:SetBackdropBorderColor(unpack(T.btnBorder))
+            end
+        end)
+        setTabBtns[#setTabBtns + 1] = tab
+    end
+
+    setBtn:SetScript("OnClick", function(self)
+        if setFrame:IsShown() then
+            setFrame:Hide()
+        else
+            CloseAllPopups(setFrame)
+            setFrame:ClearAllPoints()
+            setFrame:SetPoint("TOPLEFT", self, "BOTTOMLEFT", 0, -5)
+            setScrollOffset = 0
+            IMTSetScrollFrame_Update()
+            setFrame:Show()
+        end
+    end)
+
+    return setBtn
 end
 
 local function BuildModelSection(mainFrame, preWidget)
@@ -477,7 +705,7 @@ local function BuildModelSection(mainFrame, preWidget)
         manualName = "buttonModelChange", manualLabel = "手动角色改模",
         manualTooltip = "输入模型ID后点击修改",
         onManual = Morph,
-        offsetX = -17,
+        offsetX = 0,
     })
     return selectModelBtn
 end
@@ -818,7 +1046,7 @@ local function BuildRaceSection(mainFrame, preWidget)
 end
 
 local function BuildShapeshiftSection(mainFrame, preWidget)
-    local savedShapeshiftSelection = iMorphToolsDBC.shapeshiftSelection or "猎豹形态"
+    local savedShapeshiftSelection = iMorphToolsDBC.shapeshiftSelection or "猫"
     local selectedShapeshiftID = IMT.ShapeshiftIDs[savedShapeshiftSelection]
     local selectedShapeshiftName = savedShapeshiftSelection
 

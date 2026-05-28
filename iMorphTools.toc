@@ -7,5 +7,14 @@
 ## Notes: iMorphTools改模工具，输入/imt打开面板
 
 
-data.lua
+data/core.lua
+data/commands.lua
+data/sets.lua
+data/models.lua
+data/mounts.lua
+data/races.lua
+data/shapeshifts.lua
+data/enchants.lua
+data/spells.lua
+data/playkit.lua
 ui.lua
