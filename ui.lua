@@ -41,6 +41,7 @@ local function RegisterPopup(frame)
     allPopups[frame] = true
 end
 local function CloseAllPopups(except)
+    CloseDropDownMenus()
     for f in pairs(allPopups) do
         if f ~= except and f:IsShown() then
             f:Hide()
@@ -60,6 +61,7 @@ local function OpenMenu(menuID, btn, menuFrame)
     else
         activeMenuID = menuID
         activeMenuBtn = btn
+        CloseAllPopups(nil)
         ToggleDropDownMenu(1, nil, menuFrame, btn, 0, 0)
     end
 end
@@ -348,7 +350,7 @@ end
 
 -- 创建"选择+手动输入"行（角色/宠物共用）
 local function CreateSelectRow(parent, prevWidget, config)
-    local selectBtn = CreateModernButton(config.selectName, parent, 121, 28, config.selectLabel)
+    local selectBtn = CreateModernButton(config.selectName, parent, 117, 28, config.selectLabel)
     selectBtn:SetPoint("TOPLEFT", prevWidget, "BOTTOMLEFT", config.offsetX or 0, config.offsetY or -3)
     SetupTooltip(selectBtn, config.selectTooltip)
 
@@ -387,7 +389,7 @@ local function CreateSelectRow(parent, prevWidget, config)
         iMorphToolsDBC[config.editBoxSavedVar] = self:GetText()
     end)
 
-    local manualBtn = CreateModernButton(config.manualName, parent, 121, 28, config.manualLabel)
+    local manualBtn = CreateModernButton(config.manualName, parent, 118, 28, config.manualLabel)
     manualBtn:SetPoint("LEFT", editBox, "RIGHT", 4, 0)
     SetupTooltip(manualBtn, config.manualTooltip)
 
@@ -455,7 +457,7 @@ local function BuildSetSection(mainFrame, preWidget)
     local savedSetText = iMorphToolsDBC.EditBox2Text or ""
 
     -- 选择套装按钮
-    local setBtn = CreateModernButton("SetSelectBtn", mainFrame, 121, 28, "点击选择套装")
+    local setBtn = CreateModernButton("SetSelectBtn", mainFrame, 117, 28, "点击选择套装")
     setBtn:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 0, -3)
     SetupTooltip(setBtn, "点击选择职业套装")
 
@@ -466,7 +468,7 @@ local function BuildSetSection(mainFrame, preWidget)
         iMorphToolsDBC.EditBox2Text = self:GetText()
     end)
 
-    local buttonSetChange = CreateModernButton("buttonSetChange", mainFrame, 121, 28, "手动套装改模")
+    local buttonSetChange = CreateModernButton("buttonSetChange", mainFrame, 118, 28, "手动套装改模")
     buttonSetChange:SetPoint("LEFT", editBox2, "RIGHT", 4, 0)
     SetupTooltip(buttonSetChange, "输入套装ID或快捷名后点击修改")
 
@@ -727,7 +729,7 @@ local function BuildPetSection(mainFrame, preWidget)
 end
 
 local function BuildMountSection(mainFrame, preWidget)
-    local selectMountBtn = CreateModernButton("SelectMountBtn", mainFrame, 121, 28, "点击坐骑改模")
+    local selectMountBtn = CreateModernButton("SelectMountBtn", mainFrame, 117, 28, "点击坐骑改模")
     selectMountBtn:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 0, -3)
     SetupTooltip(selectMountBtn, "点击打开坐骑选择列表")
 
@@ -991,7 +993,7 @@ local function BuildMountSection(mainFrame, preWidget)
         iMorphToolsDBC.MountModelID = self:GetText()
     end)
 
-    local manualMountBtn = CreateModernButton("buttonMountChange", mainFrame, 121, 28, "手动坐骑改模")
+    local manualMountBtn = CreateModernButton("buttonMountChange", mainFrame, 118, 28, "手动坐骑改模")
     manualMountBtn:SetPoint("LEFT", editBoxMount, "RIGHT", 4, 0)
     SetupTooltip(manualMountBtn, "输入坐骑模型ID后点击修改")
 
@@ -1006,7 +1008,7 @@ local function BuildMountSection(mainFrame, preWidget)
 end
 
 local function BuildRaceSection(mainFrame, preWidget)
-    local selectRaceBtn = CreateModernButton("SelectRaceBtn", mainFrame, 170, 28, "点击修改种族模型")
+    local selectRaceBtn = CreateModernButton("SelectRaceBtn", mainFrame, 163, 28, "点击修改种族模型")
     selectRaceBtn:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 0, -3)
     SetupTooltip(selectRaceBtn, "点击选择种族直接生效")
 
@@ -1034,8 +1036,8 @@ local function BuildRaceSection(mainFrame, preWidget)
     end)
 
     -- 变性按钮
-    local buttonGenderChange = CreateModernButton("buttonGenderChange", mainFrame, 160, 28, "变性")
-    buttonGenderChange:SetPoint("LEFT", selectRaceBtn, "RIGHT", 6, 0)
+    local buttonGenderChange = CreateModernButton("buttonGenderChange", mainFrame, 163, 28, "变性")
+    buttonGenderChange:SetPoint("LEFT", selectRaceBtn, "RIGHT", 4, 0)
     SetupTooltip(buttonGenderChange, "点击改变角色性别")
     buttonGenderChange:SetScript("OnClick", function()
         SetGender()
@@ -1052,7 +1054,7 @@ local function BuildShapeshiftSection(mainFrame, preWidget)
 
     local dropdownShapeshifts = CreateFrame("Frame", "WPDemoDropdownShapeshifts", mainFrame, "UIDropDownMenuTemplate")
     dropdownShapeshifts:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", -17, -3)
-    UIDropDownMenu_SetWidth(dropdownShapeshifts, 100)
+    UIDropDownMenu_SetWidth(dropdownShapeshifts, 65)
     UIDropDownMenu_SetText(dropdownShapeshifts, "变形形态")
     StyleDropdown(dropdownShapeshifts)
 
@@ -1085,7 +1087,7 @@ local function BuildShapeshiftSection(mainFrame, preWidget)
 
     local dropdownShapeshiftModels = CreateFrame("Frame", "WPDemoDropdownShapeshiftModels", mainFrame, "UIDropDownMenuTemplate")
     dropdownShapeshiftModels:SetPoint("LEFT", dropdownShapeshifts, "RIGHT", -30, 0)
-    UIDropDownMenu_SetWidth(dropdownShapeshiftModels, 85)
+    UIDropDownMenu_SetWidth(dropdownShapeshiftModels, 100)
     UIDropDownMenu_SetText(dropdownShapeshiftModels, "形态模型")
     StyleDropdown(dropdownShapeshiftModels)
 
@@ -1123,14 +1125,14 @@ local function BuildShapeshiftSection(mainFrame, preWidget)
     end)
     UIDropDownMenu_SetText(dropdownShapeshiftModels, selectedShapeshiftModelName or "幽灵虎")
 
-    local editBox10 = CreateModernEditBox("editBox10", mainFrame, 45, 28)
+    local editBox10 = CreateModernEditBox("editBox10", mainFrame, 60, 28)
     editBox10:SetPoint("LEFT", dropdownShapeshiftModels, "RIGHT", -8, 0)
     editBox10:SetText(iMorphToolsDBC.ShapeshiftModelID or "21974")
     editBox10:SetScript("OnTextChanged", function(self)
         iMorphToolsDBC.ShapeshiftModelID = self:GetText()
     end)
 
-    local buttonShapeshiftChange = CreateModernButton("buttonShapeshiftChange", mainFrame, 65, 28, "改形态")
+    local buttonShapeshiftChange = CreateModernButton("buttonShapeshiftChange", mainFrame, 56, 28, "改形态")
     buttonShapeshiftChange:SetPoint("LEFT", editBox10, "RIGHT", 4, 0)
     SetupTooltip(buttonShapeshiftChange, "选择形态和形态模型，点击修改")
 
@@ -1155,7 +1157,7 @@ local function BuildItemSection(mainFrame, preWidget)
 
     local dropDown = CreateFrame("Frame", "WPDemoDropDown2", mainFrame, "UIDropDownMenuTemplate")
     dropDown:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", -18, -14)
-    UIDropDownMenu_SetWidth(dropDown, 150)
+    UIDropDownMenu_SetWidth(dropDown, 95)
     StyleDropdown(dropDown)
 
     UIDropDownMenu_Initialize(dropDown, function(self, level)
@@ -1179,14 +1181,14 @@ local function BuildItemSection(mainFrame, preWidget)
     end)
     UIDropDownMenu_SetText(dropDown, "栏位: " .. (IMT.SlotIDs[selectedSlotID] or "未知栏位"))
 
-    local textFrame = CreateModernEditBox("WPDemoTextFrame", mainFrame, 85, 28)
+    local textFrame = CreateModernEditBox("WPDemoTextFrame", mainFrame, 100, 28)
     textFrame:SetPoint("LEFT", dropDown, "RIGHT", -8, 0)
     textFrame:SetText(iMorphToolsDBC.modelID or "物品编号")
     textFrame:SetScript("OnTextChanged", function()
         iMorphToolsDBC.modelID = textFrame:GetText()
     end)
 
-    local buttonFrame = CreateModernButton("WPDemoButtonFrame", mainFrame, 75, 28, "改装备")
+    local buttonFrame = CreateModernButton("WPDemoButtonFrame", mainFrame, 90, 28, "改装备")
     buttonFrame:SetPoint("LEFT", textFrame, "RIGHT", 4, 0)
     SetupTooltip(buttonFrame, "选择装备栏位然后在编辑框填写物品ID，点击修改")
 
@@ -1506,7 +1508,7 @@ local function BuildEnchantSection(mainFrame, preWidget)
     end)
 
     -- 手动输入ID
-    local editBoxEnchant = CreateModernEditBox("editBoxEnchant", mainFrame, 85, 28)
+    local editBoxEnchant = CreateModernEditBox("editBoxEnchant", mainFrame, 80, 28)
     editBoxEnchant:SetPoint("LEFT", selectEnchantBtn, "RIGHT", 4, 0)
     editBoxEnchant:SetText(iMorphToolsDBC.enchantManualID or "0")
     editBoxEnchant:SetScript("OnTextChanged", function(self)
@@ -1752,7 +1754,7 @@ local function BuildSpellSection(mainFrame, preWidget)
     -- ============================================
     -- 技能效果按钮（带标签分组）
     -- ============================================
-    local spellEffectBtn = CreateModernButton("SpellEffectBtn", mainFrame, 90, 28, savedSelectedSpellName)
+    local spellEffectBtn = CreateModernButton("SpellEffectBtn", mainFrame, 88, 28, savedSelectedSpellName)
     spellEffectBtn:SetPoint("LEFT", buttonSpellChange, "RIGHT", 4, 0)
     SetupTooltip(spellEffectBtn, "点击选择技能效果")
 
@@ -2037,7 +2039,7 @@ local function BuildPlayKitSection(mainFrame, preWidget)
     end
 
     -- 特效选择按钮
-    local pkBtn = CreateModernButton("PlayKitBtn", mainFrame, 100, 28, selectedPlayKitName)
+    local pkBtn = CreateModernButton("PlayKitBtn", mainFrame, 140, 28, selectedPlayKitName)
     pkBtn:SetPoint("TOPLEFT", preWidget, "BOTTOMLEFT", 0, -5)
     SetupTooltip(pkBtn, "点击选择视觉套件")
 
@@ -2061,7 +2063,7 @@ local function BuildPlayKitSection(mainFrame, preWidget)
     end
     for _, info in ipairs(optInfo) do
         local label, opt = info[1], info[2]
-        local btn = CreateModernButton(nil, mainFrame, 40, 28, label)
+        local btn = CreateModernButton(nil, mainFrame, 50, 28, label)
         btn:SetNormalFontObject("GameFontNormalSmall")
         btn:SetHighlightFontObject("GameFontHighlightSmall")
         local prevBtn = optBtns[#optBtns]
@@ -2100,7 +2102,7 @@ local function BuildPlayKitSection(mainFrame, preWidget)
     end
 
     -- 应用按钮
-    local buttonPK = CreateModernButton("buttonPK", mainFrame, 50, 28, "应用")
+    local buttonPK = CreateModernButton("buttonPK", mainFrame, 80, 28, "应用")
     buttonPK:SetPoint("LEFT", optBtns[#optBtns], "RIGHT", 4, 0)
     SetupTooltip(buttonPK, "应用选中的视觉套件\n动态=0 套件动作执行一次\n静态=1 套件保持固定效果")
 
