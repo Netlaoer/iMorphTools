@@ -1,5 +1,8 @@
 -- 便捷改模指令集
 local CmdDefs = {
+    {"双炎黄附魔", function() SetEnchant(16, 324); SetEnchant(17, 324) end},
+    {"双辉煌暴君附魔", function() SetEnchant(16, 257); SetEnchant(17, 257) end},
+    {"震击风暴+永火光晕", function() SetSpell(20473, 360194); SetSpell(156322, 120517); SetSpell(275773, 107570); SetSpell(6603, 162243) end},
     {"双赶猪棒", function() SetItem(16, 77572); SetItem(17, 77572) end},
     {"红天启", function() SetItem(16, 128403, 31) end},
     {"双红天启", function() SetItem(16, 128403, 31); SetItem(17, 128403, 31) end},
