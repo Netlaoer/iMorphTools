@@ -39,9 +39,10 @@ iMorphTools/
 
 ## 安装
 
-1. 确保 [iMorph](https://www.imorph.dev/download) 已正确安装
+1. 确保 [iMorphTools](https://github.com/Netlaoer/iMorphTools) 已正确安装
 2. 将 `iMorphTools` 文件夹复制到 `Interface/AddOns/` 目录
 3. 重启游戏或 `/reload`
+4. 登录角色后，运行 `iMorphTools/iMorph/RuniMorph.exe` 注入 DLL
 
 ---
 
