@@ -2215,7 +2215,13 @@ function InitUI()
 
     tinsert(UISpecialFrames, "iMorphToolsMainFrame")
 
-    CreateTitleBar(mainFrame, "|cff3399FFiMorphTools|r", function() mainFrame:Hide() end)
+    CreateTitleBar(mainFrame, "|cff3399FFiMorphTools|r", function()
+        CloseAllPopups(nil)
+        CloseDropDownMenus()
+        activeMenuID = nil
+        activeMenuBtn = nil
+        mainFrame:Hide()
+    end)
 
     iMorphToolsMiniMapButton = CreateiMorphToolsMiniMapButton(mainFrame)
 
@@ -2266,6 +2272,10 @@ function CreateiMorphToolsMiniMapButton(mainFrame)
     btn:SetScript("OnMouseUp", function(self, button)
         if button == "LeftButton" then
             if mainFrame:IsShown() then
+                CloseAllPopups(nil)
+                CloseDropDownMenus()
+                activeMenuID = nil
+                activeMenuBtn = nil
                 mainFrame:Hide()
             else
                 mainFrame:Show()
