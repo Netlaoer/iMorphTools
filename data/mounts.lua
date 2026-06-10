@@ -178,13 +178,11 @@ local TWWMountDefs = {
     {"板岩磐羊的缰绳", 117965},
     {"雷什基加尔之手", 101036},
 }
-local TWWMountIDs, TWWMountOrder = BuildIDTable(TWWMountDefs)
 
 -- 巨龙时代坐骑
 local DFMountDefs = {
     {"野乌战龟", 120280},
     {"哨兵战狼", 119663},
-    {"[PH] Alliance Wolf Mount Red - 223470", 119662},
     {"卡多雷战狼", 119661},
     {"黑石战刃豹", 119657},
     {"库卡隆战刃豹", 119656},
@@ -192,7 +190,6 @@ local DFMountDefs = {
     {"幽光海滩追猎者", 119506},
     {"卡赫，深渊传奇", 119507},
     {"珠辉地精斩浪者", 119277},
-    {"[PH] Goblin Surfboard - 221270", 119192},
     {"星光帝王翔龙缰绳", 119095},
     {"至尊凤凰的缰绳", 119094},
     {"魅力信使", 118601},
@@ -222,8 +219,6 @@ local DFMountDefs = {
     {"雷霆红玉云端翔龙缰绳", 45797},
     {"紫色影踪派骑乘虎缰绳", 44758},
     {"覆羽携风者的风筝线", 42146},
-    {"[PH] Nightsaber Horde Mount White - 223460", 119658},
-    {"[PH] Blue Old God Fish Mount - 223282", 119505},
     {"浪游荒蚺缰绳", 117829},
     {"勇猛的梦爪獍", 117078},
     {"勇猛的梦爪獍(旧)", 117077},
@@ -372,7 +367,6 @@ local DFMountDefs = {
     {"碧蓝掠蜓", 100695},
     {"翠绿掠蜓", 100694},
 }
-local DFMountIDs, DFMountOrder = BuildIDTable(DFMountDefs)
 
 -- 角斗士坐骑
 local GladMountDefs = {
@@ -421,7 +415,6 @@ local GladMountDefs = {
     {"[TWW S42] 至臻角斗士的魔蝠", 123005},
     {"[MN S44] 星河角斗士的残虐幼龙", 139089},
 }
-local GladMountIDs, GladMountOrder = BuildIDTable(GladMountDefs)
 
 -- 坐骑分组（用于二级菜单）
 IMT.MountGroups = {

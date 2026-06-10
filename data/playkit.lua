@@ -28,5 +28,3 @@ IMT.PlayKitDefs = {
     {"地下堡武器特效", 202219},
 }
 
--- 特征映射
-IMT.FeatureMap = {}
