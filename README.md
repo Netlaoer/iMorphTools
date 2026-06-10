@@ -42,12 +42,12 @@ iMorphTools/
 1. 确保 [iMorphTools](https://github.com/Netlaoer/iMorphTools) 已正确安装
 2. 将 `iMorphTools` 文件夹复制到 `Interface/AddOns/` 目录
 3. 重启游戏或 `/reload`
-4. 登录角色后，运行 `iMorphTools/iMorph/RuniMorph.exe` 注入 DLL
 
 ---
 
 ## 使用
 
+- **登录角色后**，先运行 `iMorphTools/iMorph/RuniMorph.exe` 注入 DLL，否则改模功能无法生效
 - **小地图按钮**：左键点击打开/关闭主面板，右键拖动按钮位置
 - **斜杠命令**：输入 `/imt` 打开主面板
 - **主面板**：360x550 暗色主题窗口，包含以下功能区：
